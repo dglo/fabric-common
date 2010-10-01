@@ -21,7 +21,8 @@ def exists(f):
     Determine if remote file with path <f> (fully qualified or
     relative to remote user directory) exists.
     """
-    return "YES" == run("if [ -e %s ]; then echo YES; else echo NO; fi" % f)
+    with hide('stdout', 'running'):
+        return "YES" == run("if [ -e %s ]; then echo YES; else echo NO; fi" % f)
 
 
 def confirm_with_details(f, *args):
@@ -70,7 +71,14 @@ def unpack_tarball(tar):
     run("/bin/tar xzf %s" % tar)
 
 
-if __name__ == "__main__":
-    import doctest
-    doctest.testmod()
+def put_verbatim(fname, txt):
+    tmpfile = "/tmp/__fab___tmp.tmp"
+    f = file(tmpfile, "w")
+    print >> f, txt
+    f.close()
+    put(tmpfile, fname)
+    local("rm %s" % tmpfile)
+
+
+
 
