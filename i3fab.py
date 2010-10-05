@@ -25,7 +25,7 @@ def exists(f):
         return "YES" == run("if [ -e %s ]; then echo YES; else echo NO; fi" % f)
 
 
-def confirm_with_details(f, *args):
+def confirm_with_details(f):
     """
     Decorator which prints __doc__ for given function, asks the user
     if she really wants to pull the trigger, and executes the function
@@ -42,11 +42,11 @@ def confirm_with_details(f, *args):
                sudo('reboot') # Yikes!
                
     """
-    def new():
+    def new(*args, **kwargs):
         if f.__doc__:
             print f.__doc__
         if confirm("%s?" % f.__name__):
-            return f(*args)
+            return f(*args, **kwargs)
         else:
             print "skipping %s!" % f.__name__
     return new
