@@ -12,6 +12,8 @@ Prerequisites: fabric python module on PYTHONPATH; python 2.6 (or, for 2.5, add
 to the list of imports below).
 """
 
+import tempfile
+
 from fabric.api import sudo, env, put, run, settings, cd, hide, prompt, local
 from fabric.contrib.console import confirm
 
@@ -40,7 +42,7 @@ def confirm_with_details(f):
                Reboot remote node
                '''
                sudo('reboot') # Yikes!
-               
+
     """
     def new(*args, **kwargs):
         if f.__doc__:
@@ -72,13 +74,12 @@ def unpack_tarball(tar):
 
 
 def put_verbatim(fname, txt):
-    tmpfile = "/tmp/__fab___tmp.tmp"
+    """
+    Write <txt> to <fname> on the remote system.
+    """
+    tmpfile = tempfile.mkstemp()
     f = file(tmpfile, "w")
     print >> f, txt
     f.close()
     put(tmpfile, fname)
     local("rm %s" % tmpfile)
-
-
-
-
