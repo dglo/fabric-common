@@ -79,9 +79,10 @@ def put_verbatim(fname, txt):
     """
     Write <txt> to <fname> on the remote system.
     """
-    tmpfile = tempfile.mkstemp()
-    f = file(tmpfile, "w")
-    print >> f, txt
+    (handle, tmpfile) = tempfile.mkstemp()
+    f = os.fdopen(handle, "w")
+    f.write(txt)
+    f.write("\n")
     f.close()
     put(tmpfile, fname)
     local("rm %s" % tmpfile)
