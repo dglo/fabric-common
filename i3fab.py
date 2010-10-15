@@ -137,6 +137,34 @@ def _check_tunnel(gateway_host, tunnel_host, local_port):
             sock.close()
 
 
+def _fetch_and_install_tarball(url, host_hidden=False):
+    """
+    Fetch a tar file from <url> and extract it in the current directory.
+    (See _fetch_file() for an explanation of <host_hidden>).
+    """
+    tarfile = _fetch_file(url, host_hidden)
+    run("/bin/tar xzf %s" % tarfile)
+    run("/bin/rm %s" % tarfile)
+
+
+def _fetch_file(url, host_hidden=False):
+    """
+    Fetch a file from <url>, using the local machine as a staging area
+    if <host_hidden> is True (indicating that the remote machine is behind
+    a firewall).
+    """
+    filename = os.path.basename(url)
+    if not _exists(filename):
+        if not host_hidden:
+            run("wget -q %s" % url)
+        else:
+            local("wget -q %s" % url)
+            put(filename, filename)
+            os.remove(filename)
+
+    return filename
+
+
 def _get_password(prompt1, prompt2=None):
     """
     Have user enter a password twice, using <prompt1> for the first request
@@ -154,41 +182,6 @@ def _get_password(prompt1, prompt2=None):
         print >>sys.stderr, "Password mismatch, please try again."
 
     return passwd
-
-
-def _python_package_exists(pkg, use_virtualenv=False):
-    """
-    Determine if Python package <pkg> is installed on the remote machine.
-    If <use_virtualenv> is True, the Python virtual environment is sourced
-    before the check.
-    """
-    with hide("running", "stdout", "stderr"):
-        if not use_virtualenv:
-            veStr = ""
-        else:
-            veStr = _activate_string() + "&&"
-
-        return "YES" == run(("%sif echo import %s | python >/dev/null 2>&1;" +
-                             " then echo YES; else echo NO; fi") %
-                            (veStr, pkg))
-
-
-def _fetch_file(url, host_hidden):
-    """
-    Fetch a file from <url>, using the local machine as a staging area
-    if <host_hidden> is True (indicating that the remote machine is behind
-    a firewall).
-    """
-    filename = os.path.basename(url)
-    if not _exists(filename):
-        if not host_hidden:
-            run("wget -q %s" % url)
-        else:
-            local("wget -q %s" % url)
-            put(filename, filename)
-            os.remove(filename)
-
-    return filename
 
 
 def _install_python_package(pkgname, url, stage_dir=None):
@@ -209,14 +202,21 @@ def _install_python_package(pkgname, url, stage_dir=None):
             run("rm " + pyfile)
 
 
-def _install_tarball(url, host_hidden=False):
+def _python_package_exists(pkg, use_virtualenv=False):
     """
-    Fetch a tar file from <url> and extract it in the current directory.
-    (See _fetch_file() for an explanation of <host_hidden>).
+    Determine if Python package <pkg> is installed on the remote machine.
+    If <use_virtualenv> is True, the Python virtual environment is sourced
+    before the check.
     """
-    tarfile = _fetch_file(url, host_hidden)
-    run("/bin/tar xzf %s" % tarfile)
-    run("/bin/rm %s" % tarfile)
+    with hide("running", "stdout", "stderr"):
+        if not use_virtualenv:
+            veStr = ""
+        else:
+            veStr = _activate_string() + "&&"
+
+        return "YES" == run(("%sif echo import %s | python >/dev/null 2>&1;" +
+                             " then echo YES; else echo NO; fi") %
+                            (veStr, pkg))
 
 
 def _stage_file(url, stage_dir, host_hidden=False):
