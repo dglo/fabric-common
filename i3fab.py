@@ -49,7 +49,7 @@ def confirm_with_details(f):
     def new(*args, **kwargs):
         if f.__doc__:
             print f.__doc__
-        if confirm("%s?" % f.__name__):
+        if confirm("%s?" % f.__name__, default=False):
             return f(*args, **kwargs)
         else:
             print "skipping %s!" % f.__name__
