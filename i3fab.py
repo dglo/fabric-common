@@ -19,14 +19,15 @@ from fabric.api import sudo, env, put, run, settings, cd, hide, prompt, local, \
 from fabric.contrib.console import confirm
 
 
-def exists(f):
+def _exists(f):
     """
     Determine if remote file with path <f> (fully qualified or
     relative to remote user directory) exists.
     """
     with hide('stdout', 'running'):
         return "YES" == run("if [ -e %s ]; then echo YES; else echo NO; fi" % f)
-_exists = exists
+    
+exists = _exists
 
 
 def confirm_with_details(f):
@@ -75,7 +76,7 @@ def unpack_tarball(tar):
     run("/bin/tar xzf %s" % tar)
 
 
-def put_verbatim(fname, txt):
+def _put_verbatim(fname, txt):
     """
     Write <txt> to <fname> on the remote system.
     """
@@ -86,6 +87,8 @@ def put_verbatim(fname, txt):
     f.close()
     put(tmpfile, fname)
     local("rm %s" % tmpfile)
+
+put_verbatim = _put_verbatim
 
 
 def _activate_string():

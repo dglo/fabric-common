@@ -1,5 +1,6 @@
 Next release:
 
+0004299: Add 'hidden' (_) versions of some functions in common file
 0004280: Fix broken confirm_with_details decorator
 0004260: Factor tarball operations and possibly others to fabric-common so others can use them.
 0004258: Create Fabric project in Subversion
