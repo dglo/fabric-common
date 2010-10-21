@@ -102,6 +102,30 @@ def _activate_string():
     return "source %s/bin/activate" % env.virtualenv_dir
 
 
+def _add_cron_job(min, hr, mday, mon, wday, rule, do_local=False):
+    """
+    Add <rule> to the remote crontab table if the crontab doesn't already
+    contain the rule.  See _make_cron_job() for argument details.
+    If <do_local> is True, the local crontab is (possibly) altered.
+    """
+    if do_local:
+        frun = local
+    else:
+        frun = run
+
+    with hide("running", "stdout", "stderr"):
+        # -mtime argument can change, so replace it with a wildcard
+        #
+        greprule = GREP_MTIME_PAT.sub(" .* ", _escape_cron_rule(rule, True))
+        grep = frun("crontab -l | grep '%s' || echo no" % greprule)
+    if grep == "no":
+        remotefile = "/tmp/crontab.%s-%d" % (env.host, os.getpid())
+        frun("crontab -l >| %s || exit 0" % remotefile)
+        frun("echo '%s' >> %s" % (_make_cron_job(min, hr, mday, mon, wday,
+                                                  rule), remotefile))
+        frun("crontab %s && rm %s" % (remotefile, remotefile))
+
+
 def _check_tunnel(gateway_host, tunnel_host, local_port):
     """
     Open an ssh tunnel on <local_port> connecting the local host to
@@ -139,6 +163,22 @@ def _check_tunnel(gateway_host, tunnel_host, local_port):
                 print "waiting for %s tunnel to be created" % tunnel_host
                 time.sleep(1)
             sock.close()
+
+
+def _escape_cron_rule(rule, regexp_chars=False):
+    """
+    Escape quote and backslash characters so the cron rule may be used as
+    an argument to other commands.  It is assumed that the string will be
+    enclosed in single quotes.  If <regexp_chars> is True, some regular
+    expression characters will also be escaped.
+    """
+    special = ["\\", "'"]
+    if regexp_chars:
+        special += ("*", "^")
+    for ch in special:
+        if rule.find(ch) >= 0:
+            rule = ("\\" + ch).join(p for p in rule.split(ch))
+    return rule
 
 
 def _fetch_and_install_tarball(url, host_hidden=False):
@@ -225,6 +265,25 @@ def _install_python_package(pkgname, url, stage_dir=None, do_local=False):
 
         if stage_dir is None:
             frun("rm " + pyfile)
+
+
+def _make_cron_job(min, hr, mday, mon, wday, rule):
+    """
+    Format the arguments in a string acceptable to crontab.  The time arguments
+    (<min>, <hr>, <mday>, <mon>, and <wday>) are analagous to the first five
+    crontab arguments, except that any negative number indicates a wildcard (*)
+    argument.
+    """
+    cron = [min, hr, mday, mon, wday]
+    for i in range(len(cron)):
+        if cron[i] < 0:
+            cron[i] = "*"
+        else:
+            cron[i] = str(cron[i])
+
+    cron.append(_escape_cron_rule(rule))
+
+    return " ".join(cron)
 
 
 def _python_package_exists(pkg, use_virtualenv=False, do_local=False):
