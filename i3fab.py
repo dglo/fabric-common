@@ -332,7 +332,7 @@ def _stage_file(url, stage_dir, host_hidden=False, do_local=False):
 
 
 def _svn_checkout(svn_url, dir_name, username=None, update_existing=True,
-                  do_local=True):
+                  do_local=False):
     """
     Check out the Subversion project from <svn_url> into directory <dir_name>.
     This method makes one attempt to check out without specifying a password.
