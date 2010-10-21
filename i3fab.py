@@ -26,7 +26,7 @@ def _exists(f):
     """
     with hide('stdout', 'running'):
         return "YES" == run("if [ -e %s ]; then echo YES; else echo NO; fi" % f)
-    
+
 exists = _exists
 
 
@@ -151,16 +151,24 @@ def _fetch_and_install_tarball(url, host_hidden=False):
     run("/bin/rm %s" % tarfile)
 
 
-def _fetch_file(url, host_hidden=False):
+def _fetch_file(url, host_hidden=False, do_local=False):
     """
     Fetch a file from <url>, using the local machine as a staging area
     if <host_hidden> is True (indicating that the remote machine is behind
-    a firewall).
+    a firewall).  If <do_local> is True, fetch the file to the local machine.
     """
+    if do_local:
+        fexists = os.path.exists
+        frun = local
+        host_hidden = False
+    else:
+        fexists = _exists
+        frun = run
+
     filename = os.path.basename(url)
-    if not _exists(filename):
+    if not fexists(filename):
         if not host_hidden:
-            run("wget -q %s" % url)
+            frun("wget -q %s" % url)
         else:
             local("wget -q %s" % url)
             put(filename, filename)
@@ -188,84 +196,138 @@ def _get_password(prompt1, prompt2=None):
     return passwd
 
 
-def _install_python_package(pkgname, url, stage_dir=None):
+def _install_python_package(pkgname, url, stage_dir=None, do_local=False):
     """
     Install the Python package (imported inside Python with "import <pkgname>")
     from <url>.  If <stage_dir> is set, the downloaded file is saved there.
+    If <do_local> is True, install the file in the local home directory.
     """
-    if not _python_package_exists(pkgname, True):
+    require("host_hidden",
+            used_for="determining if the host is behind a firewall")
+
+    if do_local:
+        frun = local
+        host_hidden = False
+    else:
+        frun = run
+        host_hidden = env.host_hidden
+
+    if not _python_package_exists(pkgname, use_virtualenv=True,
+                                  do_local=do_local):
         if stage_dir is None:
             tmpdir = "/tmp"
         else:
             tmpdir = stage_dir
 
-        pyfile = _stage_file(url, tmpdir, env.host_hidden)
-        _virtualenv("easy_install %s" % pyfile)
+        pyfile = _stage_file(url, tmpdir, host_hidden=host_hidden,
+                             do_local=do_local)
+        _virtualenv("easy_install %s" % pyfile, do_local=do_local)
 
         if stage_dir is None:
-            run("rm " + pyfile)
+            frun("rm " + pyfile)
 
 
-def _python_package_exists(pkg, use_virtualenv=False):
+def _python_package_exists(pkg, use_virtualenv=False, do_local=False):
     """
     Determine if Python package <pkg> is installed on the remote machine.
     If <use_virtualenv> is True, the Python virtual environment is sourced
-    before the check.
+    before the check.  If <do_local> is True, check for the package on the
+    local machine.
     """
+    if do_local:
+        frun = local
+    else:
+        frun = run
+
     with hide("running", "stdout", "stderr"):
         if not use_virtualenv:
             veStr = ""
         else:
             veStr = _activate_string() + "&&"
 
-        return "YES" == run(("%sif echo import %s | python >/dev/null 2>&1;" +
-                             " then echo YES; else echo NO; fi") %
-                            (veStr, pkg))
+        return "YES" == frun(("%sif echo import %s | python >/dev/null 2>&1;" +
+                              " then echo YES; else echo NO; fi") %
+                             (veStr, pkg))
 
 
-def _stage_file(url, stage_dir, host_hidden=False):
+def _stage_file(url, stage_dir, host_hidden=False, do_local=False):
     """
-    Download file from <url> to the staging area <stage_dir>.
-    (See _fetch_file() for an explanation of <host_hidden>).
+    Download file from <url> to the staging area <stage_dir>.  If <do_local> is
+    True, save the file to the local staging area.  (See _fetch_file() for an
+    explanation of <host_hidden>).
     """
+    if do_local:
+        fexists = os.path.exists
+        frun = local
+    else:
+        fexists = _exists
+        frun = run
+
     stageFile = os.path.join(stage_dir, os.path.basename(url))
-    if not _exists(stageFile):
-        filename = _fetch_file(url, host_hidden)
+    if not fexists(stageFile):
+        filename = _fetch_file(url, host_hidden=host_hidden, do_local=do_local)
         if filename != stageFile:
-            run("mv %s %s" % (filename, stageFile))
+            frun("mv %s %s" % (filename, stageFile))
 
     return stageFile
 
 
-def _svn_checkout(svn_url, dir_name):
+def _svn_checkout(svn_url, dir_name, username=None, update_existing=True,
+                  do_local=True):
     """
     Check out the Subversion project from <svn_url> into directory <dir_name>.
     This method makes one attempt to check out without specifying a password.
     On subsequent attempts, it will prompt for the password, giving up after
     three attempts.
+
+    If the project already exists and <update_existing> is True, then
+    "svn update" will be run in the project directory.
+    if <do_local> is True, the project will be checked out on the local machine.
     """
     require("svnpass", used_for="checking out Subversion projects")
 
-    if not _exists(dir_name):
+    if do_local:
+        homedir = os.environ["HOME"]
+        fexists = os.path.exists
+        frun = local
+    else:
+        with hide("running", "stdout", "stderr"):
+            homedir = run("echo $HOME")
+        fexists = _exists
+        frun = run
+
+    path = os.path.join(homedir, dir_name)
+    if fexists(path):
+        if update_existing:
+            frun("cd %s && svn up" % path)
+    else:
         attempts = -1
 
         while True:
             if attempts < 0 or env.svnpass is not None:
                 tmppass = env.svnpass
             else:
-                prompt = "Enter Subversion password for %s" % env.user
+                if username is not None:
+                    u = username
+                else:
+                    u = env.user
+                prompt = "Enter Subversion password for %s" % u
 
                 tmppass = _get_password(prompt)
 
             with hide("running", "warnings", "stderr"):
                 with settings(warn_only=True):
-                    print "svn co %s %s" % (svn_url, dir_name)
-                    if tmppass is None:
-                        pass_arg = ""
+                    if username is not None:
+                        user_arg = "--username %s " % username
                     else:
-                        pass_arg = " --password %s " % tmppass
-                    rtnval = run("(echo; echo; echo; echo) | svn co %s%s %s" %
-                                 (pass_arg, svn_url, dir_name))
+                        user_arg = ""
+                    print "svn co %s%s %s" % (user_arg, svn_url, path)
+                    if tmppass is not None:
+                        pass_arg = "--password %s " % tmppass
+                    else:
+                        pass_arg = ""
+                    rtnval = frun("(echo; echo; echo; echo) | svn co %s%s%s %s" %
+                                  (user_arg, pass_arg, svn_url, path))
 
             if not rtnval.failed:
                 if env.svnpass is None:
@@ -279,8 +341,14 @@ def _svn_checkout(svn_url, dir_name):
                 break
 
 
-def _virtualenv(cmd):
+def _virtualenv(cmd, do_local=False):
     """
-    Run <cmd> inside Python virtual environment.
+    Run <cmd> inside Python virtual environment.  If <do_local> is True, the
+    command is run on the local machine.
     """
-    run(_activate_string() + "&&" + cmd)
+    if do_local:
+        frun = local
+    else:
+        frun = run
+
+    frun(_activate_string() + "&&" + cmd)
