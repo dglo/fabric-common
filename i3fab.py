@@ -186,21 +186,51 @@ def _escape_cron_rule(rule, regexp_chars=False):
     return rule
 
 
-def _fetch_and_install_tarball(url, host_hidden=False):
+def _extract_file(filename, extract_dir=None, do_local=False):
     """
-    Fetch a tar file from <url> and extract it in the current directory.
+    Extract archive file <filename>.  If <extract_dir> is not None, the file
+    will be extracted into that directory.
+    If <do_local> is True, extract the file on the local machine.
+    """
+    if do_local:
+        frun = local
+    else:
+        frun = run
+
+    if extract_dir is None:
+        cd_cmd = ""
+    else:
+        cd_cmd = "cd %s && " % extract_dir
+
+    ext = os.path.splitext(filename)
+    if ext == ".tar":
+        frun(cd_cmd + "/bin/tar xzf %s" % filename)
+    elif ext == ".zip":
+        frun(cd_cmd + "unzip " + filename)
+    else:
+        raise Exception("Unknown extension \"%s\" for \"%s\"" % (ext, filename))
+
+
+def _fetch_and_extract(url, host_hidden=False, do_local=False):
+    """
+    Fetch a file from <url>, extract it in the current directory, and remove
+    the downloaded file.  If <do_local> is True, fetch the file to the local
+    machine.
     (See _fetch_file() for an explanation of <host_hidden>).
     """
-    tarfile = _fetch_file(url, host_hidden)
-    run("/bin/tar xzf %s" % tarfile)
-    run("/bin/rm %s" % tarfile)
+    filename = _fetch_file(url, host_hidden, do_local)
+    _extract_file(filename, do_local)
+    run("/bin/rm %s" % filename)
 
+_fetch_and_install_tarball = _fetch_and_extract
 
 def _fetch_file(url, host_hidden=False, do_local=False):
     """
     Fetch a file from <url>, using the local machine as a staging area
     if <host_hidden> is True (indicating that the remote machine is behind
     a firewall).  If <do_local> is True, fetch the file to the local machine.
+
+    Return the name of the fetched file.
     """
     if do_local:
         fexists = os.path.exists
