@@ -252,6 +252,23 @@ def _fetch_file(url, host_hidden=False, do_local=False):
     return filename
 
 
+def _file_contains_text(path, text, do_local=False):
+    """
+    Return True if <file> contains <text>.  Note this method uses "grep", so
+    results may be confusing if <text> contains regular expression characters.
+    """
+
+    if do_local:
+        frun = local
+    else:
+        frun = run
+
+    with hide("running", "stdout", "stderr"):
+        # this returns "" if the text was found, and "no" if not found
+        rtnstr = frun("grep -q \"%s\" %s || echo no" % (text, path))
+    return len(rtnstr) == 0
+
+
 def _get_password(prompt1, prompt2=None):
     """
     Have user enter a password twice, using <prompt1> for the first request
