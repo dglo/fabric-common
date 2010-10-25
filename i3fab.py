@@ -12,11 +12,16 @@ Prerequisites: fabric python module on PYTHONPATH; python 2.6 (or, for 2.5, add
 to the list of imports below).
 """
 
-import getpass, os, socket, subprocess, sys, tempfile, time
+import getpass, os, re, socket, subprocess, sys, tempfile, time
 
 from fabric.api import sudo, env, put, run, settings, cd, hide, prompt, local, \
      require
 from fabric.contrib.console import confirm
+
+
+# regular expression needed by _add_cron_job()
+#
+GREP_MTIME_PAT = re.compile("\s+-mtime\s+\S+\s+")
 
 
 def _exists(f):
