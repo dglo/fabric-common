@@ -378,13 +378,27 @@ def _stage_file(url, stage_dir, host_hidden=False, do_local=False):
         fexists = _exists
         frun = run
 
-    stageFile = os.path.join(stage_dir, os.path.basename(url))
-    if not fexists(stageFile):
-        filename = _fetch_file(url, host_hidden=host_hidden, do_local=do_local)
-        if filename != stageFile:
-            frun("mv %s %s" % (filename, stageFile))
+    stagePath = os.path.join(stage_dir, os.path.basename(url))
+    if not fexists(stagePath):
+        if not fexists(stage_dir):
+            frun("mkdir -p " + stage_dir)
 
-    return stageFile
+        if not do_local:
+            origDir = None
+            stageFile = stagePath
+        else:
+            origDir = os.getcwd()
+            os.chdir(stage_dir)
+            stageFile = os.path.basename(stagePath)
+
+        filename = _fetch_file(url, host_hidden=host_hidden,
+                               do_local=do_local)
+        if filename != stageFile or origDir is None:
+            frun("mv %s %s" % (filename, stagePath))
+        if origDir is not None:
+            os.chdir(origDir)
+
+    return stagePath
 
 
 def _svn_checkout(svn_url, dir_name, username=None, update_existing=True,
