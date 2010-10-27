@@ -202,13 +202,17 @@ def _extract_file(filename, extract_dir=None, do_local=False):
     else:
         cd_cmd = "cd %s && " % extract_dir
 
-    ext = os.path.splitext(filename)
-    if ext == ".tar":
-        frun(cd_cmd + "/bin/tar xzf %s" % filename)
-    elif ext == ".zip":
+    if filename.endswith(".tar"):
+        frun(cd_cmd + "tar xvf %s" % filename)
+    elif filename.endswith(".tgz") or filename.endswith(".tar.gz"):
+        frun(cd_cmd + "tar xzf %s" % filename)
+    elif filename.endswith(".tar.bz2"):
+        frun(cd_cmd + "tar xjf %s" % filename)
+    elif filename.endswith(".zip"):
         frun(cd_cmd + "unzip " + filename)
     else:
-        raise Exception("Unknown extension \"%s\" for \"%s\"" % (ext, filename))
+        raise Exception("Unknown extension \"%s\" for \"%s\"" %
+                        (ext, filename))
 
 
 def _fetch_and_extract(url, host_hidden=False, do_local=False):
