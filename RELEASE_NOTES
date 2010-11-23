@@ -1,5 +1,6 @@
 Next release:
 
+0004399: Accept arbitrary (non-int) arguments for crontab creation
 0004307: Add _add_cron_job() method
 0004306: Some methods operate on the local machine if 'do_local' param is True
 0004299: Add 'hidden' (_) versions of some functions in common file

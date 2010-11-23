@@ -327,18 +327,10 @@ def _make_cron_job(min, hr, mday, mon, wday, rule):
     """
     Format the arguments in a string acceptable to crontab.  The time arguments
     (<min>, <hr>, <mday>, <mon>, and <wday>) are analagous to the first five
-    crontab arguments, except that any negative number indicates a wildcard (*)
-    argument.
+    crontab arguments; an argument of type str is passed verbatim (e.g. '*')
     """
-    cron = [min, hr, mday, mon, wday]
-    for i in range(len(cron)):
-        if cron[i] < 0:
-            cron[i] = "*"
-        else:
-            cron[i] = str(cron[i])
-
+    cron = [str(h) for h in [min, hr, mday, mon, wday]]
     cron.append(_escape_cron_rule(rule))
-
     return " ".join(cron)
 
 
