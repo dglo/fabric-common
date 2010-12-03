@@ -13,7 +13,7 @@ to the list of imports below).
 """
 
 import getpass, os, re, socket, subprocess, sys, tempfile, time
-
+from os.path import join, exists as osexists
 from fabric.api import sudo, env, put, run, settings, cd, hide, prompt, local, \
      require
 from fabric.contrib.console import confirm
@@ -62,14 +62,21 @@ def confirm_with_details(f):
     return new
 
 
-def fetch_tarball(url, tar):
+def fetch_tarball(url, tar, do_local=False):
     """
-    Fetch a tarball into the current directory.  Use the fabric 'with
-    cd' context manager to set the directory before calling this
-    function.
+    Fetch a tarball into the current directory, if not already there.
+    Use the fabric 'with cd' context manager to set the directory
+    before calling this function.
+    JEJ 12/3 added a bit of witchcraft to support 'local' fetches
     """
-    if not exists(tar):
-        run("/usr/bin/wget -q %s;" % url)
+    if do_local:
+        r = local
+        ex = lambda x: osexists(join(env.cwd, x))
+    else:
+        r = run
+        ex = _exists
+    if not ex(tar):
+        r("/usr/bin/wget -q %s;" % url)
 
 
 def unpack_tarball(tar):
