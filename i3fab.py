@@ -12,16 +12,12 @@ Prerequisites: fabric python module on PYTHONPATH; python 2.6 (or, for 2.5, add
 to the list of imports below).
 """
 
+from re import sub
 import getpass, os, re, socket, subprocess, sys, tempfile, time
 from os.path import join, exists as osexists
 from fabric.api import sudo, env, put, run, settings, cd, hide, prompt, local, \
      require
 from fabric.contrib.console import confirm
-
-
-# regular expression needed by _add_cron_job()
-#
-GREP_MTIME_PAT = re.compile("\s+-mtime\s+\S+\s+")
 
 
 def _exists(f):
@@ -114,11 +110,35 @@ def _activate_string():
     return "source %s/bin/activate" % env.virtualenv_dir
 
 
-def _add_cron_job(min, hr, mday, mon, wday, rule, do_local=False):
+def _entry_in_crontab(crontext, entry):
     """
-    Add <rule> to the remote crontab table if the crontab doesn't already
-    contain the rule.  See _make_cron_job() for argument details.
-    If <do_local> is True, the local crontab is (possibly) altered.
+    See if <entry> is in text <crontext> from crontab.  Match Dave's
+    (pDAQ's) requirement that code is invariant to different values of
+    <x> in '-mtime <x>'.
+    
+    >>> _entry_in_crontab(None, None)
+    False
+    >>> _entry_in_crontab("foo", "foo")
+    True
+    >>> _entry_in_crontab("bar", "foo")
+    False
+    >>> _entry_in_crontab("* * * * * find 'x' -yoda -mtime blah quantaquanta",
+    ...                   "* * * * * find 'x' -yoda -mtime glarch")
+    True
+    """
+    if crontext is None:
+        return False
+    crontext = sub("-mtime\s+(\S+)", "-mtime XXXX", crontext)
+    entry = sub("-mtime\s+(\S+)", "-mtime XXXX", entry)
+    if entry in crontext:
+        return True
+    return False
+
+
+
+def _add_cron_literal(line, do_local=False):
+    """
+    Add arbitrary line to a local or remote crontab.
     """
     if do_local:
         frun = local
@@ -126,18 +146,34 @@ def _add_cron_job(min, hr, mday, mon, wday, rule, do_local=False):
         frun = run
 
     with hide("running", "stdout", "stderr"):
-        # -mtime argument can change, so replace it with a wildcard
-        #
-        greprule = GREP_MTIME_PAT.sub(" .* ", _escape_cron_rule(rule, True))
-        grep = frun("crontab -l | grep '%s' || echo no" % greprule)
-    if grep == "no":
-        remotefile = "/tmp/crontab.%s-%d" % (env.host, os.getpid())
-        frun("crontab -l >| %s || exit 0" % remotefile)
-        frun("echo '%s' >> %s" % (_make_cron_job(min, hr, mday, mon, wday,
-                                                  rule), remotefile))
-        frun("crontab %s && rm %s" % (remotefile, remotefile))
+        crontext = frun("crontab -l || exit 0")
+        if _entry_in_crontab(crontext, line):
+            return
 
+    crontext = "%s\n%s\n" % (crontext.rstrip(), line)
+    cronfile = "/tmp/crontab-add.%s-%d" % (env.host, os.getpid())
+    f = open(cronfile, "w")
+    print >> f, crontext
+    f.close()
+    if not do_local:
+        put(cronfile, cronfile)
+    
+    frun("crontab "+cronfile)
+    frun("rm "+cronfile)
+    local("rm -f "+cronfile)
 
+        
+def _add_cron_job(min, hr, mday, mon, wday, rule,
+                  do_local=False):
+    """
+    Add <rule> to the remote crontab table if the crontab doesn't already
+    contain the rule.  See _make_cron_job() for argument details.
+    If <do_local> is True, the local crontab is (possibly) altered.
+    """
+    _add_cron_literal(
+        _make_cron_job(min, hr, mday, mon, wday, rule), do_local)
+    
+    
 def _check_tunnel(gateway_host, tunnel_host, local_port):
     """
     Open an ssh tunnel on <local_port> connecting the local host to
@@ -175,22 +211,6 @@ def _check_tunnel(gateway_host, tunnel_host, local_port):
                 print "waiting for %s tunnel to be created" % tunnel_host
                 time.sleep(1)
             sock.close()
-
-
-def _escape_cron_rule(rule, regexp_chars=False):
-    """
-    Escape quote and backslash characters so the cron rule may be used as
-    an argument to other commands.  It is assumed that the string will be
-    enclosed in single quotes.  If <regexp_chars> is True, some regular
-    expression characters will also be escaped.
-    """
-    special = ["\\", "'"]
-    if regexp_chars:
-        special += ("*", "^")
-    for ch in special:
-        if rule.find(ch) >= 0:
-            rule = ("\\" + ch).join(p for p in rule.split(ch))
-    return rule
 
 
 def _extract_file(filename, extract_dir=None, do_local=False):
@@ -234,6 +254,7 @@ def _fetch_and_extract(url, host_hidden=False, do_local=False):
     run("/bin/rm %s" % filename)
 
 _fetch_and_install_tarball = _fetch_and_extract
+
 
 def _fetch_file(url, host_hidden=False, do_local=False):
     """
@@ -336,8 +357,7 @@ def _make_cron_job(min, hr, mday, mon, wday, rule):
     (<min>, <hr>, <mday>, <mon>, and <wday>) are analagous to the first five
     crontab arguments; an argument of type str is passed verbatim (e.g. '*')
     """
-    cron = [str(h) for h in [min, hr, mday, mon, wday]]
-    cron.append(_escape_cron_rule(rule))
+    cron = [str(h) for h in [min, hr, mday, mon, wday, rule]]
     return " ".join(cron)
 
 
@@ -480,3 +500,8 @@ def _virtualenv(cmd, do_local=False):
         frun = run
 
     frun(_activate_string() + "&&" + cmd)
+
+
+if __name__ == "__main__":
+    import doctest
+    doctest.testmod()
