@@ -1,5 +1,6 @@
 Next release:
 
+0004443: Handle addition of lines to crontab not matching e.g. * * * * * blah..., and handle single quotes correctly
 0004421: Allow for local tarball unpacking
 0004399: Accept arbitrary (non-int) arguments for crontab creation
 0004307: Add _add_cron_job() method
