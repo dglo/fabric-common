@@ -94,7 +94,7 @@ def _put_verbatim(fname, txt):
     f.write("\n")
     f.close()
     put(tmpfile, fname)
-    local("rm %s" % tmpfile)
+    os.remove(tmpfile)
 
 put_verbatim = _put_verbatim
 
@@ -160,7 +160,7 @@ def _add_cron_literal(line, do_local=False):
 
     frun("crontab "+cronfile)
     frun("rm "+cronfile)
-    local("rm -f "+cronfile)
+    os.remove(cronfile)
 
 
 def _add_cron_job(min, hr, mday, mon, wday, rule,
