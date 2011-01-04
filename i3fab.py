@@ -115,7 +115,7 @@ def _entry_in_crontab(crontext, entry):
     See if <entry> is in text <crontext> from crontab.  Match Dave's
     (pDAQ's) requirement that code is invariant to different values of
     <x> in '-mtime <x>'.
-    
+
     >>> _entry_in_crontab(None, None)
     False
     >>> _entry_in_crontab("foo", "foo")
@@ -157,12 +157,12 @@ def _add_cron_literal(line, do_local=False):
     f.close()
     if not do_local:
         put(cronfile, cronfile)
-    
+
     frun("crontab "+cronfile)
     frun("rm "+cronfile)
     local("rm -f "+cronfile)
 
-        
+
 def _add_cron_job(min, hr, mday, mon, wday, rule,
                   do_local=False):
     """
@@ -172,8 +172,8 @@ def _add_cron_job(min, hr, mday, mon, wday, rule,
     """
     _add_cron_literal(
         _make_cron_job(min, hr, mday, mon, wday, rule), do_local)
-    
-    
+
+
 def _check_tunnel(gateway_host, tunnel_host, local_port):
     """
     Open an ssh tunnel on <local_port> connecting the local host to
