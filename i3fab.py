@@ -154,11 +154,14 @@ def _add_cron_literal(line, do_local=False):
     f = os.fdopen(handle, "w")
     print >> f, "%s\n%s\n" % (crontext.rstrip(), line)
     f.close()
-    if not do_local:
-        put(tmpfile, tmpfile)
 
-    frun("crontab "+tmpfile)
-    frun("rm "+tmpfile)
+    with hide("running", "stdout", "stderr"):
+        print "Adding cron job %s" % line
+        if not do_local:
+            put(tmpfile, tmpfile)
+
+        frun("crontab %s && rm %s" % (tmpfile, tmpfile))
+
     os.remove(tmpfile)
 
 
