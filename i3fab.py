@@ -150,17 +150,16 @@ def _add_cron_literal(line, do_local=False):
         if _entry_in_crontab(crontext, line):
             return
 
-    crontext = "%s\n%s\n" % (crontext.rstrip(), line)
-    cronfile = "/tmp/crontab-add.%s-%d" % (env.host, os.getpid())
-    f = open(cronfile, "w")
-    print >> f, crontext
+    (handle, tmpfile) = tempfile.mkstemp()
+    f = os.fdopen(handle, "w")
+    print >> f, "%s\n%s\n" % (crontext.rstrip(), line)
     f.close()
     if not do_local:
-        put(cronfile, cronfile)
+        put(tmpfile, tmpfile)
 
-    frun("crontab "+cronfile)
-    frun("rm "+cronfile)
-    os.remove(cronfile)
+    frun("crontab "+tmpfile)
+    frun("rm "+tmpfile)
+    os.remove(tmpfile)
 
 
 def _add_cron_job(min, hr, mday, mon, wday, rule,
