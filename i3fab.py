@@ -386,6 +386,40 @@ def _python_package_exists(pkg, use_virtualenv=False, do_local=False):
                              (veStr, pkg))
 
 
+def _remove_cron_rule(rule, do_local=False):
+    """
+    Remove <rule> from the remote crontab table if the crontab contains
+    the rule.
+    If <do_local> is True, the local crontab is (possibly) altered.
+    """
+    if do_local:
+        frun = local
+    else:
+        frun = run
+
+    with hide("running", "stdout", "stderr"):
+        crontext = frun("crontab -l || exit 0")
+        if not _entry_in_crontab(crontext, rule):
+            return
+
+
+    (handle, tmpfile) = tempfile.mkstemp()
+    f = os.fdopen(handle, "w")
+    for line in crontext.split("\n"):
+        if line.find(rule) < 0:
+            print >>f, line
+    f.close()
+
+    with hide("running", "stdout", "stderr"):
+        print "Removing cron job %s" % rule
+        if not do_local:
+            put(tmpfile, tmpfile)
+
+        frun("crontab %s && rm %s" % (tmpfile, tmpfile))
+
+    os.remove(tmpfile)
+
+
 def _stage_file(url, stage_dir, host_hidden=False, do_local=False):
     """
     Download file from <url> to the staging area <stage_dir>.  If <do_local> is
