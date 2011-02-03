@@ -72,7 +72,7 @@ def fetch_tarball(url, tar, do_local=False):
         r = run
         ex = _exists
     if not ex(tar):
-        r("/usr/bin/wget -q %s;" % url)
+        r("/usr/bin/wget -q %s -O %s" % (url, tar))
 
 
 def unpack_tarball(tar):
