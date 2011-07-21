@@ -15,9 +15,10 @@ to the list of imports below).
 from re import sub
 import getpass, os, re, socket, subprocess, sys, tempfile, time
 from os.path import join, exists as osexists
-from fabric.api import sudo, env, put, run, settings, cd, hide, prompt, local, \
+from fabric.api import sudo, env, put, run, settings, cd, lcd, hide, prompt, local, \
      require
 from fabric.contrib.console import confirm
+from contextlib import contextmanager as _contextmanager
 
 
 def _exists(f):
@@ -58,7 +59,7 @@ def confirm_with_details(f):
     return new
 
 
-def fetch_tarball(url, tar, do_local=False):
+def fetch_tarball(url, tar, do_local=False, skip_if_exists=True):
     """
     Fetch a tarball into the current directory, if not already there.
     Use the fabric 'with cd' context manager to set the directory
@@ -66,13 +67,32 @@ def fetch_tarball(url, tar, do_local=False):
     JEJ 12/3 added a bit of witchcraft to support 'local' fetches
     """
     if do_local:
-        r = local
-        ex = lambda x: osexists(join(env.cwd, x))
+        run_func = local
     else:
-        r = run
-        ex = _exists
-    if not ex(tar):
-        r("/usr/bin/wget -q %s -O %s" % (url, tar))
+        run_func = run
+
+    if skip_if_exists:
+        skip_test = "test -f "+tar+" ||"
+    else:
+        skip_test = ""
+        
+    run_func("%s /usr/bin/wget -q %s -O %s" % (skip_test, url, tar))
+
+
+def fetch_tarball_with_cd(url, tar, path=None, do_local=False,
+                          skip_if_exists=True):
+    """
+    Fetches a tarball but sets up the working directory context first
+    so that the tar is fetched into the desired area
+    """
+    if do_local:
+        cd_context = lcd
+    else:
+        cd_context = cd
+    with cd_context(path):
+        fetch_tarball(url, tar, do_local)
+        
+_fetch_tarball_with_cd = fetch_tarball_with_cd
 
 
 def unpack_tarball(tar):
@@ -135,35 +155,54 @@ def _entry_in_crontab(crontext, entry):
     return False
 
 
+def _get_current_cron_text(do_local=False):
+    if do_local:
+        return local("crontab -l || exit 0", capture=True)
+    else:
+        return run("crontab -l || exit 0")
+        
+
+def _add_entry_to_crontext(line, text):
+    return "%s\n%s\n" % (text.rstrip(), line)
+
 
 def _add_cron_literal(line, do_local=False):
     """
     Add arbitrary line to a local or remote crontab.
     """
+    crontext = _get_current_cron_text(do_local)
+    if _entry_in_crontab(crontext, line):
+        return
+
+    crontext = _add_entry_to_crontext(line, crontext)
     if do_local:
-        frun = local
+        _replace_local_crontab(crontext)
     else:
-        frun = run
+        _replace_remote_crontab(crontext)
 
-    with hide("running", "stdout", "stderr"):
-        crontext = frun("crontab -l || exit 0")
-        if _entry_in_crontab(crontext, line):
-            return
 
+def _write_tempfile_and_return_name(text):
     (handle, tmpfile) = tempfile.mkstemp()
     f = os.fdopen(handle, "w")
-    print >> f, "%s\n%s\n" % (crontext.rstrip(), line)
+    print >> f, text,
     f.close()
+    return tmpfile
+    
 
-    with hide("running", "stdout", "stderr"):
-        print "Adding cron job %s" % line
-        if not do_local:
-            put(tmpfile, tmpfile)
+def _replace_local_crontab(crontext):
+    local_tmp_file = _write_tempfile_and_return_name(crontext)
+    local("crontab "+local_tmp_file)
+    os.remove(local_tmp_file)
 
-        frun("crontab %s && rm %s" % (tmpfile, tmpfile))
 
-    os.remove(tmpfile)
-
+def _replace_remote_crontab(crontext):
+    local_tmp_file = _write_tempfile_and_return_name(crontext)
+    remote_tmp_file = local_tmp_file+".remote" # In case remote == local, e.g. localhost
+    put(local_tmp_file, remote_tmp_file)
+    os.remove(local_tmp_file)
+    run("crontab "+remote_tmp_file)
+    run("rm "+remote_tmp_file)
+    
 
 def _add_cron_job(min, hr, mday, mon, wday, rule,
                   do_local=False):
