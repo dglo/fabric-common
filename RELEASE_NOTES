@@ -1,5 +1,6 @@
 Next release:
 
+0005040: Fix production of duplicate crontab entries by fabfile
 0005033: Clean up cron job functionality
 0004562: Use supplied tarball name for wget filename for local disk -- required to handle Google Code tarballs
 0004443: Handle addition of lines to crontab not matching e.g. * * * * * blah..., and handle single quotes correctly
