@@ -155,15 +155,23 @@ def _entry_in_crontab(crontext, entry):
     return False
 
 
+def stripnl(str):
+    return sub('\r','',str)
+
+
 def _get_current_cron_text(do_local=False):
-    if do_local:
-        return local("crontab -l || exit 0", capture=True)
-    else:
-        return run("crontab -l || exit 0")
+    """
+    \r's are removed -- they are put there by run() and mess up our inclusion testing
+    """
+    with hide('stdout', 'running'):
+        if do_local:
+            return stripnl(local("crontab -l 2>/dev/null || exit 0", capture=True))
+        else:
+            return stripnl(run("crontab -l 2>/dev/null || exit 0"))
         
 
 def _add_entry_to_crontext(line, text):
-    return "%s\n%s\n" % (text.rstrip(), line)
+    return text+"\n"+line
 
 
 def _add_cron_literal(line, do_local=False):
@@ -184,7 +192,7 @@ def _add_cron_literal(line, do_local=False):
 def _write_tempfile_and_return_name(text):
     (handle, tmpfile) = tempfile.mkstemp()
     f = os.fdopen(handle, "w")
-    print >> f, text,
+    print >> f, text
     f.close()
     return tmpfile
     
