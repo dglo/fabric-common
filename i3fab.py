@@ -127,7 +127,7 @@ def _activate_string():
     require("virtualenv_dir", used_for="the path to the user's" +
             " virtualenv directory")
 
-    return "source %s/bin/activate" % env.virtualenv_dir
+    return ". %s/bin/activate" % env.virtualenv_dir
 
 
 def _entry_in_crontab(crontext, entry):
@@ -428,8 +428,8 @@ def _python_package_exists(pkg, use_virtualenv=False, do_local=False):
         else:
             veStr = _activate_string() + "&&"
 
-        return "YES" == frun(("%sif echo import %s | python >/dev/null 2>&1;" +
-                              " then echo YES; else echo NO; fi") %
+        return "YES" == frun(('%s if echo import %s | python >/dev/null 2>&1;' +
+                              ' then echo YES; else echo NO; fi') %
                              (veStr, pkg))
 
 
