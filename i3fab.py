@@ -15,6 +15,7 @@ to the list of imports below).
 from re import sub
 import getpass, os, re, socket, subprocess, sys, tempfile, time
 from os.path import join, exists as osexists
+import os.path
 from fabric.api import sudo, env, put, run, settings, cd, lcd, hide, prompt, local, \
      require
 from fabric.contrib.console import confirm
@@ -287,8 +288,8 @@ def _extract_file(filename, extract_dir=None, do_local=False):
     elif filename.endswith(".zip"):
         frun(cd_cmd + "unzip " + filename)
     else:
-        raise Exception("Unknown extension \"%s\" for \"%s\"" %
-                        (ext, filename))
+        raise Exception("Unknown extension for \"%s\"" %
+                        (filename))
 
 
 def _fetch_and_extract(url, host_hidden=False, do_local=False):
@@ -390,7 +391,7 @@ def _install_python_package(pkgname, url, stage_dir=None, do_local=False):
         if stage_dir is None:
             tmpdir = "/tmp"
         else:
-            tmpdir = stage_dir
+            tmpdir = os.path.expanduser(stage_dir)
 
         pyfile = _stage_file(url, tmpdir, host_hidden=host_hidden,
                              do_local=do_local)
