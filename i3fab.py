@@ -428,7 +428,7 @@ def _python_package_exists(pkg, use_virtualenv=False, do_local=False):
         else:
             veStr = _activate_string() + "&&"
 
-        return "YES" == frun(('%s if echo import %s | python >/dev/null 2>&1;' +
+        return "YES" == frun(('%s if python -c "import %s" >/dev/null 2>&1;' +
                               ' then echo YES; else echo NO; fi') %
                              (veStr, pkg))
 
