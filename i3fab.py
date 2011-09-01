@@ -15,7 +15,6 @@ to the list of imports below).
 from re import sub
 import getpass, os, re, socket, subprocess, sys, tempfile, time
 from os.path import join, exists as osexists
-import os.path
 from fabric.api import sudo, env, put, run, settings, cd, lcd, hide, prompt, local, \
      require
 from fabric.contrib.console import confirm
