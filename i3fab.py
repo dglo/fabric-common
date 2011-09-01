@@ -76,7 +76,7 @@ def fetch_tarball(url, tar, do_local=False, skip_if_exists=True):
         skip_test = "test -f "+tar+" ||"
     else:
         skip_test = ""
-        
+
     run_func("%s /usr/bin/wget -q %s -O %s" % (skip_test, url, tar))
 
 
@@ -92,7 +92,7 @@ def fetch_tarball_with_cd(url, tar, path=None, do_local=False,
         cd_context = cd
     with cd_context(path):
         fetch_tarball(url, tar, do_local)
-        
+
 _fetch_tarball_with_cd = fetch_tarball_with_cd
 
 
@@ -169,7 +169,7 @@ def _get_current_cron_text(do_local=False):
             return stripnl(local("crontab -l 2>/dev/null || exit 0", capture=True))
         else:
             return stripnl(run("crontab -l 2>/dev/null || exit 0"))
-        
+
 
 def _add_entry_to_crontext(line, text):
     return text+"\n"+line
@@ -196,7 +196,7 @@ def _write_tempfile_and_return_name(text):
     print >> f, text
     f.close()
     return tmpfile
-    
+
 
 def _replace_local_crontab(crontext):
     local_tmp_file = _write_tempfile_and_return_name(crontext)
@@ -211,7 +211,7 @@ def _replace_remote_crontab(crontext):
     os.remove(local_tmp_file)
     run("crontab "+remote_tmp_file)
     run("rm "+remote_tmp_file)
-    
+
 
 def _add_cron_job(min, hr, mday, mon, wday, rule,
                   do_local=False):
