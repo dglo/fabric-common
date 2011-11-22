@@ -59,6 +59,13 @@ def confirm_with_details(f):
     return new
 
 
+def _capture_local(cmd):
+    """
+    Call local() with capture enabled to emulate run() behavior
+    """
+    return local(cmd, capture=True)
+
+
 def fetch_tarball(url, tar, do_local=False, skip_if_exists=True):
     """
     Fetch a tarball into the current directory, if not already there.
@@ -67,7 +74,7 @@ def fetch_tarball(url, tar, do_local=False, skip_if_exists=True):
     JEJ 12/3 added a bit of witchcraft to support 'local' fetches
     """
     if do_local:
-        run_func = local
+        run_func = _capture_local
     else:
         run_func = run
 
@@ -271,7 +278,7 @@ def _extract_file(filename, extract_dir=None, do_local=False):
     If <do_local> is True, extract the file on the local machine.
     """
     if do_local:
-        frun = local
+        frun = _capture_local
     else:
         frun = run
 
@@ -317,7 +324,7 @@ def _fetch_file(url, host_hidden=False, do_local=False):
     """
     if do_local:
         fexists = os.path.exists
-        frun = local
+        frun = _capture_local
         host_hidden = False
     else:
         fexists = _exists
@@ -342,7 +349,7 @@ def _file_contains_text(path, text, do_local=False):
     """
 
     if do_local:
-        frun = local
+        frun = _capture_local
     else:
         frun = run
 
@@ -381,7 +388,7 @@ def _install_python_package(pkgname, url, stage_dir=None, do_local=False):
             used_for="determining if the host is behind a firewall")
 
     if do_local:
-        frun = local
+        frun = _capture_local
         host_hidden = False
     else:
         frun = run
@@ -420,7 +427,7 @@ def _python_package_exists(pkg, use_virtualenv=False, do_local=False):
     local machine.
     """
     if do_local:
-        frun = local
+        frun = _capture_local
     else:
         frun = run
 
@@ -442,7 +449,7 @@ def _remove_cron_rule(rule, do_local=False):
     If <do_local> is True, the local crontab is (possibly) altered.
     """
     if do_local:
-        frun = local
+        frun = _capture_local
     else:
         frun = run
 
@@ -477,7 +484,7 @@ def _stage_file(url, stage_dir, host_hidden=False, do_local=False):
     """
     if do_local:
         fexists = os.path.exists
-        frun = local
+        frun = _capture_local
     else:
         fexists = _exists
         frun = run
@@ -522,7 +529,7 @@ def _svn_checkout(svn_url, dir_name, username=None, update_existing=True,
     if do_local:
         homedir = os.environ["HOME"]
         fexists = os.path.exists
-        frun = local
+        frun = _capture_local
     else:
         with hide("running", "stdout", "stderr"):
             homedir = run("echo $HOME")
@@ -580,7 +587,7 @@ def _virtualenv(cmd, do_local=False):
     command is run on the local machine.
     """
     if do_local:
-        frun = local
+        frun = _capture_local
     else:
         frun = run
 
