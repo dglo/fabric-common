@@ -15,8 +15,8 @@ to the list of imports below).
 from re import sub
 import getpass, os, re, socket, subprocess, sys, tempfile, time
 from os.path import join, exists as osexists
-from fabric.api import sudo, env, put, run, settings, cd, lcd, hide, prompt, local, \
-     require
+from fabric.api import sudo, env, put, run, settings, cd, lcd, hide, prompt, \
+    local, require
 from fabric.contrib.console import confirm
 from contextlib import contextmanager as _contextmanager
 
@@ -161,11 +161,13 @@ def stripnl(str):
 
 def _get_current_cron_text(do_local=False):
     """
-    \r's are removed -- they are put there by run() and mess up our inclusion testing
+    \r's are removed -- they are put there by run() and mess up our inclusion
+    testing
     """
     with hide('stdout', 'running'):
         if do_local:
-            return stripnl(local("crontab -l 2>/dev/null || exit 0", capture=True))
+            return stripnl(local("crontab -l 2>/dev/null || exit 0",
+                                 capture=True))
         else:
             return stripnl(run("crontab -l 2>/dev/null || exit 0"))
 
