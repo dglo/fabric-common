@@ -378,7 +378,8 @@ def _get_password(prompt1, prompt2=None):
     return passwd
 
 
-def _install_python_package(pkgname, url, stage_dir=None, do_local=False):
+def _install_python_package(pkgname, url, stage_dir=None, do_local=False,
+                            check_version_method=None, check_version_args=None):
     """
     Install the Python package (imported inside Python with "import <pkgname>")
     from <url>.  If <stage_dir> is set, the downloaded file is saved there.
@@ -395,7 +396,9 @@ def _install_python_package(pkgname, url, stage_dir=None, do_local=False):
         host_hidden = env.host_hidden
 
     if not _python_package_exists(pkgname, use_virtualenv=True,
-                                  do_local=do_local):
+                                  do_local=do_local) or \
+        (check_version_method is not None and
+         not check_version_method(check_version_args)):
         if stage_dir is None:
             tmpdir = "/tmp"
         else:
