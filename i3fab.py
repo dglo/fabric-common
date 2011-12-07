@@ -271,6 +271,23 @@ def _check_tunnel(gateway_host, tunnel_host, local_port):
             sock.close()
 
 
+def _expand_tilde(dir, do_local=False):
+    """
+    Expand a relative path starting with ~ into an absolute path
+    """
+    if not dir.startswith("~"):
+        return dir
+
+    if do_local:
+        return os.path.expanduser(dir)
+
+    splitpath = dir.split(os.path.sep)
+    with hide("running", "stdout", "stderr"):
+        fixed = run("cd %s && pwd" % splitpath[0])
+    splitpath[0] = fixed
+    return os.path.sep.join(splitpath)
+
+
 def _extract_file(filename, extract_dir=None, do_local=False):
     """
     Extract archive file <filename>.  If <extract_dir> is not None, the file
@@ -402,7 +419,7 @@ def _install_python_package(pkgname, url, stage_dir=None, do_local=False,
         if stage_dir is None:
             tmpdir = "/tmp"
         else:
-            tmpdir = os.path.expanduser(stage_dir)
+            tmpdir = _expand_tilde(stage_dir, do_local=do_local)
 
         pyfile = _stage_file(url, tmpdir, host_hidden=host_hidden,
                              do_local=do_local)
