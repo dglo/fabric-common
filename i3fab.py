@@ -13,12 +13,18 @@ to the list of imports below).
 """
 
 from re import sub
-import getpass, os, re, socket, subprocess, sys, tempfile, time
+import getpass
+import os
+import socket
+import subprocess
+import sys
+import tempfile
+import time
+from fabric.api import (sudo, env, put, run, settings, cd, lcd, hide, prompt,
+                        local, require)
+
 from os.path import join, exists as osexists
-from fabric.api import sudo, env, put, run, settings, cd, lcd, hide, prompt, \
-    local, require
 from fabric.contrib.console import confirm
-from contextlib import contextmanager as _contextmanager
 
 
 def _exists(f):
