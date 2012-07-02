@@ -172,6 +172,19 @@ def stripnl(str):
     return sub('\r','',str)
 
 
+def _is_bad_cron_line(crontext):
+    bad_cron_line = (27, 91, 72, 27, 91, 74)
+
+    if crontext is None or len(crontext) != len(bad_cron_line):
+        return False
+
+    for i in xrange(len(bad_cron_line)):
+        if ord(crontext[i]) != bad_cron_line[i]:
+            return False
+
+    return True
+
+
 def _get_current_cron_text(do_local=False):
     """
     \r's are removed -- they are put there by run() and mess up our inclusion
@@ -179,10 +192,13 @@ def _get_current_cron_text(do_local=False):
     """
     with hide('stdout', 'running'):
         if do_local:
-            return stripnl(local("crontab -l 2>/dev/null || exit 0",
-                                 capture=True))
+            crontext = stripnl(local("crontab -l 2>/dev/null || exit 0",
+                                     capture=True))
         else:
-            return stripnl(run("crontab -l 2>/dev/null || exit 0"))
+            crontext = stripnl(run("crontab -l 2>/dev/null || exit 0"))
+            if _is_bad_cron_line(crontext):
+                crontext = ""
+        return crontext
 
 
 def _add_entry_to_crontext(line, text):
