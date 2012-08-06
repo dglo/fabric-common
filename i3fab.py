@@ -20,11 +20,13 @@ import subprocess
 import sys
 import tempfile
 import time
+import fabric.utils
 from fabric.api import (sudo, env, put, run, settings, cd, lcd, hide, prompt,
-                        local, require)
+                        local, require, get)
 
 from os.path import join, exists as osexists
 from fabric.contrib.console import confirm
+from SSHKey import SSHKey
 
 
 def _exists(f):
@@ -516,6 +518,93 @@ def _remove_cron_rule(rule, do_local=False):
         frun("crontab %s && rm %s" % (tmpfile, tmpfile))
 
     os.remove(tmpfile)
+
+
+def _ssh_authorize_key(do_local=False):
+    """
+    Copy local user's public key into the remote account's authorized_keys
+    file. Don't copy if key already in authorized_keys.
+    """
+
+    if do_local:
+        homedir = os.environ["HOME"]
+        fexists = os.path.exists
+        fput = shutil.copyfile
+        frun = _capture_local
+    else:
+        with hide("running", "stdout", "stderr"):
+            homedir = run("echo $HOME")
+        fexists = _exists
+        fput = put
+        frun = run
+
+    pub_key = os.path.join(os.environ["HOME"], ".ssh", "id_dsa.pub")
+    new_key = SSHKey.read_file(pub_key)
+    if len(new_key) != 1:
+        fabric.utils.warn("Found multiple SSH keys in %s" % pub_key)
+
+    sshdir = os.path.join(homedir, '.ssh')
+    authkeys = os.path.join(sshdir, "authorized_keys")
+
+    changed = False
+    if not fexists(authkeys):
+        if not fexists(sshdir):
+            frun("mkdir -pm 0700 %s" % sshdir)
+        tmpfile = None
+        rmt_keys = new_key
+        changed = True
+    else:
+        # read in remote authorized_keys
+        tmpfile = tempfile.mktemp("remote_authkeys")
+        with hide("running", "stdout", "stderr"):
+            get(authkeys, tmpfile)
+        rmt_keys = SSHKey.read_file(tmpfile, fabric.utils.warn)
+        os.remove(tmpfile)
+
+        # merge in id_dsa.pub if it's not in the authorized_keys file
+        # or if it's been changed
+        for k, v in new_key.iteritems():
+            if not k in rmt_keys or \
+                rmt_keys[k].hexkey() != new_key[k].hexkey():
+                rmt_keys[k] = v
+                changed = True
+
+    if changed:
+        fabric.utils.warn("Updating remote SSH key")
+        tmpfile = tempfile.mktemp("new_keys")
+        SSHKey.write_file(tmpfile, rmt_keys)
+        fput(tmpfile, authkeys)
+        frun("chmod 0600 %s" % authkeys)
+        os.remove(tmpfile)
+
+
+def _ssh_genkey(keyfile=".ssh/id_dsa", do_local=False):
+    "Generate an SSH key"
+    addHomeDir = (keyfile[0] != "/")
+    if do_local:
+        if addHomeDir:
+            homedir = os.environ["HOME"]
+        fexists = os.path.exists
+        frun = _capture_local
+    else:
+        if addHomeDir:
+            with hide("running", "stdout", "stderr"):
+                homedir = run("echo $HOME")
+        fexists = _exists
+        frun = run
+
+    if addHomeDir:
+        keypath = os.path.join(homedir, keyfile)
+    if not fexists(keypath):
+        prompt1 = "Enter new SSH passphrase for %s" % env.host
+        prompt2 = "Re-enter SSH passphrase"
+
+        passphrase = _get_password(prompt1, prompt2)
+
+        with hide("running"):
+            print "Generating SSH key"
+            frun("(echo '%s'; echo '%s') | ssh-keygen -t dsa -f '%s'" %
+                (passphrase, passphrase, keypath))
 
 
 def _stage_file(url, stage_dir, host_hidden=False, do_local=False):
