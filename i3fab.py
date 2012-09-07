@@ -725,6 +725,17 @@ def _virtualenv(cmd, do_local=False):
     frun(_activate_string() + "&&" + cmd)
 
 
+def _program_exists(prog, do_local=False):
+    if do_local:
+        frun = _capture_local
+    else:
+        frun = run
+
+    with settings(warn_only=True):
+        with hide('output'):
+            return frun("which " + prog).succeeded
+
+    
 if __name__ == "__main__":
     import doctest
     doctest.testmod()
