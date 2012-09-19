@@ -35,7 +35,8 @@ def _exists(f):
     relative to remote user directory) exists.
     """
     with hide('stdout', 'running'):
-        return "YES" == run("if [ -e %s ]; then echo YES; else echo NO; fi" % f)
+        return "YES" == run("if [ -e %s ]; then echo YES; else echo NO; fi" %
+                            f, pty=False)
 
 exists = _exists
 
@@ -67,7 +68,7 @@ def confirm_with_details(f):
     return new
 
 
-def _capture_local(cmd):
+def _capture_local(cmd, pty=False):
     """
     Call local() with capture enabled to emulate run() behavior
     """
@@ -197,7 +198,8 @@ def _get_current_cron_text(do_local=False):
             crontext = stripnl(local("crontab -l 2>/dev/null || exit 0",
                                      capture=True))
         else:
-            crontext = stripnl(run("crontab -l 2>/dev/null || exit 0"))
+            crontext = stripnl(run("crontab -l 2>/dev/null || exit 0",
+                                   pty=False))
             if _is_bad_cron_line(crontext):
                 crontext = ""
         return crontext
@@ -396,7 +398,7 @@ def _file_contains_text(path, text, do_local=False):
 
     with hide("running", "stdout", "stderr"):
         # this returns "" if the text was found, and "no" if not found
-        rtnstr = frun("grep -q \"%s\" %s || echo no" % (text, path))
+        rtnstr = frun("grep -q \"%s\" %s || echo no" % (text, path), pty=False)
     return len(rtnstr) == 0
 
 
@@ -483,7 +485,7 @@ def _python_package_exists(pkg, use_virtualenv=False, do_local=False):
 
         return "YES" == frun(('%s if python -c "import %s" >/dev/null 2>&1;' +
                               ' then echo YES; else echo NO; fi') %
-                             (veStr, pkg))
+                             (veStr, pkg), pty=False)
 
 
 def _remove_cron_rule(rule, do_local=False):
@@ -498,7 +500,7 @@ def _remove_cron_rule(rule, do_local=False):
         frun = run
 
     with hide("running", "stdout", "stderr"):
-        crontext = frun("crontab -l || exit 0")
+        crontext = frun("crontab -l || exit 0", pty=False)
         if not _entry_in_crontab(crontext, rule):
             return
 
@@ -533,7 +535,7 @@ def _ssh_authorize_key(do_local=False):
         frun = _capture_local
     else:
         with hide("running", "stdout", "stderr"):
-            homedir = run("echo $HOME")
+            homedir = str(run("echo $HOME", pty=False))
         fexists = _exists
         fput = put
         frun = run
@@ -589,7 +591,7 @@ def _ssh_genkey(keyfile=".ssh/id_dsa", do_local=False):
     else:
         if addHomeDir:
             with hide("running", "stdout", "stderr"):
-                homedir = run("echo $HOME")
+                homedir = run("echo $HOME", pty=False)
         fexists = _exists
         frun = run
 
@@ -663,7 +665,7 @@ def _svn_checkout(svn_url, dir_name, username=None, update_existing=True,
         frun = _capture_local
     else:
         with hide("running", "stdout", "stderr"):
-            homedir = run("echo $HOME")
+            homedir = run("echo $HOME", pty=False)
         fexists = _exists
         frun = run
 
@@ -698,7 +700,7 @@ def _svn_checkout(svn_url, dir_name, username=None, update_existing=True,
                     else:
                         pass_arg = ""
                     rtnval = frun("(echo; echo; echo; echo) | svn co %s%s%s %s" %
-                                  (user_arg, pass_arg, svn_url, path))
+                                  (user_arg, pass_arg, svn_url, path), pty=False)
 
             if not rtnval.failed:
                 if env.svnpass is None:
