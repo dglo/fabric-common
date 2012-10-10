@@ -203,7 +203,7 @@ class SSHKeyFile(object):
 
         return True
 
-    def __mergeMultiple(self, origkeys, error_func=None):
+    def __mergeMultiple(self, origkeys, error_func=None, ignore_extra=False):
         """
         Check this dictionary of SSH keys against the original dictionary in
         'origkeys'.  Move any original entries which are not in this dictionary
@@ -248,9 +248,9 @@ class SSHKeyFile(object):
                                                 " for %s") %
                                                (o.keytype(), o.name()))
                                 v.merge_fromlist(o.fromlist())
+                                killKey = True
 
                             match = v
-                            killKey = True
                             break
 
                     if match is None:
@@ -269,12 +269,20 @@ class SSHKeyFile(object):
                                 break
 
                     if match is None:
-                        if error_func is not None:
-                            error_func(("Deleted extra %s key for %s" +
-                                        " in \"%s\"") %
-                                        (o.keytype(), o.name(), o.filename()))
+                        if ignore_extra:
+                            if error_func is not None:
+                                error_func(("Ignoring extra %s key for %s" +
+                                            " in \"%s\"") %
+                                           (o.keytype(), o.name(),
+                                            o.filename()))
+                        else:
+                            if error_func is not None:
+                                error_func(("Deleted extra %s key for %s" +
+                                            " in \"%s\"") %
+                                           (o.keytype(), o.name(),
+                                            o.filename()))
 
-                        killKey = True
+                            killKey = True
 
                     if killKey:
                         if not k in deaddict:
@@ -458,7 +466,7 @@ class SSHKeyFile(object):
         "Iterate through the data, returning dictionary keys"
         return self.__keys.iterkeys()
 
-    def merge(self, origkeys, error_func=None):
+    def merge(self, origkeys, error_func=None, ignore_extra=False):
         """
         Check this dictionary of SSH keys against the original dictionary in
         'origkeys'.  Move any original entries which are not in this dictionary
@@ -474,7 +482,8 @@ class SSHKeyFile(object):
         if not self.__allow_multiples:
             return self.__mergeSingle(origkeys, error_func=error_func)
 
-        return self.__mergeMultiple(origkeys, error_func=error_func)
+        return self.__mergeMultiple(origkeys, error_func=error_func,
+                                    ignore_extra=ignore_extra)
 
     def write(self, filename, file_header=None):
         "Write the SSH keys to 'filename'"
