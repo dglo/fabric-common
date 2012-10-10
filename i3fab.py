@@ -12,21 +12,20 @@ Prerequisites: fabric python module on PYTHONPATH; python 2.6 (or, for 2.5, add
 to the list of imports below).
 """
 
-from re import sub
 import getpass
 import os
+import shutil
 import socket
 import subprocess
 import sys
 import tempfile
 import time
 import fabric.utils
-from fabric.api import (sudo, env, put, run, settings, cd, lcd, hide, prompt,
-                        local, require, get)
-
-from os.path import join, exists as osexists
+from fabric.api import (env, put, run, settings, cd, lcd, hide, local,
+                        require, get)
 from fabric.contrib.console import confirm
-from SSHKey import SSHKey
+from re import sub
+from SSHKey import SSHKeyFile
 
 
 def _exists(f):
@@ -541,7 +540,8 @@ def _ssh_authorize_key(do_local=False):
         frun = run
 
     pub_key = os.path.join(os.environ["HOME"], ".ssh", "id_dsa.pub")
-    new_key = SSHKey.read_file(pub_key)
+    new_key = SSHKeyFile(pub_key, error_func=fabric.utils.warn,
+                         allow_multiples=True)
     if len(new_key) != 1:
         fabric.utils.warn("Found multiple SSH keys in %s" % pub_key)
 
@@ -560,21 +560,24 @@ def _ssh_authorize_key(do_local=False):
         tmpfile = tempfile.mktemp("remote_authkeys")
         with hide("running", "stdout", "stderr"):
             get(authkeys, tmpfile)
-        rmt_keys = SSHKey.read_file(tmpfile, fabric.utils.warn)
+        rmt_keys = SSHKeyFile(tmpfile, error_func=fabric.utils.warn,
+                              allow_multiples=True)
         os.remove(tmpfile)
 
         # merge in id_dsa.pub if it's not in the authorized_keys file
         # or if it's been changed
         for k, v in new_key.iteritems():
-            if not k in rmt_keys or \
-                rmt_keys[k].hexkey() != new_key[k].hexkey():
-                rmt_keys[k] = v
+            if not k in rmt_keys:
+                rmt_keys.add(v)
+                changed = True
+            elif rmt_keys[k].hexkey() != new_key[k].hexkey():
+                rmt_keys[k].add(v)
                 changed = True
 
     if changed:
         fabric.utils.warn("Updating remote SSH key")
         tmpfile = tempfile.mktemp("new_keys")
-        SSHKey.write_file(tmpfile, rmt_keys)
+        rmt_keys.write(tmpfile)
         fput(tmpfile, authkeys)
         frun("chmod 0600 %s" % authkeys)
         os.remove(tmpfile)
@@ -737,7 +740,7 @@ def _program_exists(prog, do_local=False):
         with hide('output'):
             return frun("which " + prog).succeeded
 
-    
+
 if __name__ == "__main__":
     import doctest
     doctest.testmod()
