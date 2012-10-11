@@ -199,6 +199,10 @@ def _get_current_cron_text(do_local=False):
         else:
             crontext = stripnl(run("crontab -l 2>/dev/null || exit 0",
                                    pty=False))
+            term_error = "TERM environment variable not set."
+            if crontext.find(term_error) >= 0:
+                crontext = crontext.replace(term_error, "").strip()
+                fabric.utils.warn("Hacked around TERM env var error")
             if _is_bad_cron_line(crontext):
                 crontext = ""
         return crontext
