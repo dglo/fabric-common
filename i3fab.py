@@ -205,6 +205,8 @@ def _get_current_cron_text(do_local=False):
 
 
 def _add_entry_to_crontext(line, text):
+    if len(text) == 0:
+        return line
     return text + "\n" + line
 
 
