@@ -87,7 +87,7 @@ def fetch_tarball(url, tar, do_local=False, skip_if_exists=True):
         run_func = run
 
     if skip_if_exists:
-        skip_test = "test -f "+tar+" ||"
+        skip_test = "test -f " + tar + " ||"
     else:
         skip_test = ""
 
@@ -171,7 +171,7 @@ def _entry_in_crontab(crontext, entry):
 
 
 def stripnl(str):
-    return sub('\r','',str)
+    return sub('\r', '', str)
 
 
 def _is_bad_cron_line(crontext):
@@ -205,7 +205,7 @@ def _get_current_cron_text(do_local=False):
 
 
 def _add_entry_to_crontext(line, text):
-    return text+"\n"+line
+    return text + "\n" + line
 
 
 def _add_cron_literal(line, do_local=False):
@@ -233,17 +233,18 @@ def _write_tempfile_and_return_name(text):
 
 def _replace_local_crontab(crontext):
     local_tmp_file = _write_tempfile_and_return_name(crontext)
-    local("crontab "+local_tmp_file)
+    local("crontab " + local_tmp_file)
     os.remove(local_tmp_file)
 
 
 def _replace_remote_crontab(crontext):
     local_tmp_file = _write_tempfile_and_return_name(crontext)
-    remote_tmp_file = local_tmp_file+".remote" # In case remote == local, e.g. localhost
+    # In case remote == local, e.g. localhost
+    remote_tmp_file = local_tmp_file + ".remote"
     put(local_tmp_file, remote_tmp_file)
     os.remove(local_tmp_file)
-    run("crontab "+remote_tmp_file)
-    run("rm "+remote_tmp_file)
+    run("crontab " + remote_tmp_file)
+    run("rm " + remote_tmp_file)
 
 
 def _add_cron_job(min, hr, mday, mon, wday, rule,
@@ -280,7 +281,8 @@ def _check_tunnel(gateway_host, tunnel_host, local_port):
         # open the tunnel
         #
         p = subprocess.Popen("ssh -L %d:%s:22 -f -N %s" %
-                             (local_port, tunnel_host, gateway_host), shell=True)
+                             (local_port, tunnel_host, gateway_host),
+                             shell=True)
 
         # wait for tunnel initialization to complete
         #
@@ -421,7 +423,8 @@ def _get_password(prompt1, prompt2=None):
 
 
 def _install_python_package(pkgname, url, stage_dir=None, do_local=False,
-                            check_version_method=None, check_version_args=None):
+                            check_version_method=None,
+                            check_version_args=None):
     """
     Install the Python package (imported inside Python with "import <pkgname>")
     from <url>.  If <stage_dir> is set, the downloaded file is saved there.
@@ -502,7 +505,6 @@ def _remove_cron_rule(rule, do_local=False):
         crontext = frun("crontab -l || exit 0", pty=False)
         if not _entry_in_crontab(crontext, rule):
             return
-
 
     (handle, tmpfile) = tempfile.mkstemp()
     f = os.fdopen(handle, "w")
@@ -658,7 +660,8 @@ def _svn_checkout(svn_url, dir_name, username=None, update_existing=True,
 
     If the project already exists and <update_existing> is True, then
     "svn update" will be run in the project directory.
-    if <do_local> is True, the project will be checked out on the local machine.
+    if <do_local> is True, the project will be checked out on the local
+    machine.
     """
     require("svnpass", used_for="checking out Subversion projects")
 
@@ -702,8 +705,10 @@ def _svn_checkout(svn_url, dir_name, username=None, update_existing=True,
                         pass_arg = "--password %s " % tmppass
                     else:
                         pass_arg = ""
-                    rtnval = frun("(echo; echo; echo; echo) | svn co %s%s%s %s" %
-                                  (user_arg, pass_arg, svn_url, path), pty=False)
+                    rtnval = frun("(echo; echo; echo; echo) |" +
+                                  " svn co %s%s%s %s" %
+                                  (user_arg, pass_arg, svn_url, path),
+                                  pty=False)
 
             if not rtnval.failed:
                 if env.svnpass is None:
