@@ -170,8 +170,8 @@ def _entry_in_crontab(crontext, entry):
     return False
 
 
-def stripnl(str):
-    return sub('\r', '', str)
+def stripnl(rawstr):
+    return sub('\r', '', rawstr)
 
 
 def _is_bad_cron_line(crontext):
