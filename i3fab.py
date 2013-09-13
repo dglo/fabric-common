@@ -350,21 +350,24 @@ def _extract_file(filename, extract_dir=None, do_local=False):
                         (filename))
 
 
-def _fetch_and_extract(url, host_hidden=False, do_local=False):
+def _fetch_and_extract(url, host_hidden=False, do_local=False,
+                       check_certificate=True):
     """
     Fetch a file from <url>, extract it in the current directory, and remove
     the downloaded file.  If <do_local> is True, fetch the file to the local
     machine.
     (See _fetch_file() for an explanation of <host_hidden>).
     """
-    filename = _fetch_file(url, host_hidden, do_local)
+    filename = _fetch_file(url, host_hidden=host_hidden, do_local=do_local,
+                           check_certificate=check_certificate)
     _extract_file(filename, do_local)
     run("/bin/rm %s" % filename)
 
 _fetch_and_install_tarball = _fetch_and_extract
 
 
-def _fetch_file(url, host_hidden=False, do_local=False):
+def _fetch_file(url, host_hidden=False, do_local=False,
+                check_certificate=True):
     """
     Fetch a file from <url>, using the local machine as a staging area
     if <host_hidden> is True (indicating that the remote machine is behind
@@ -382,10 +385,14 @@ def _fetch_file(url, host_hidden=False, do_local=False):
 
     filename = os.path.basename(url)
     if not fexists(filename):
-        if not host_hidden:
-            frun("wget -q %s" % url)
+        if check_certificate:
+            cert_flag = ""
         else:
-            local("wget -q %s" % url)
+            cert_flag = " --no-check-certificate"
+        if not host_hidden:
+            frun("wget -q %s %s" % (cert_flag, url))
+        else:
+            local("wget -q %s %s" % (cert_flag, url))
             put(filename, filename)
             os.remove(filename)
 
@@ -430,7 +437,8 @@ def _get_password(prompt1, prompt2=None):
 
 def _install_python_package(pkgname, url, stage_dir=None, do_local=False,
                             check_version_method=None,
-                            check_version_args=None):
+                            check_version_args=None,
+                            check_certificate=True):
     """
     Install the Python package (imported inside Python with "import <pkgname>")
     from <url>.  If <stage_dir> is set, the downloaded file is saved there.
@@ -456,7 +464,8 @@ def _install_python_package(pkgname, url, stage_dir=None, do_local=False,
             tmpdir = _expand_tilde(stage_dir, do_local=do_local)
 
         pyfile = _stage_file(url, tmpdir, host_hidden=host_hidden,
-                             do_local=do_local)
+                             do_local=do_local,
+                             check_certificate=check_certificate)
         _virtualenv("easy_install %s" % pyfile, do_local=do_local)
 
         if stage_dir is None:
@@ -620,7 +629,8 @@ def _ssh_genkey(keyfile=".ssh/id_dsa", do_local=False):
                 (passphrase, passphrase, keypath))
 
 
-def _stage_file(url, stage_dir, host_hidden=False, do_local=False):
+def _stage_file(url, stage_dir, host_hidden=False, do_local=False,
+                check_certificate=True):
     """
     Download file from <url> to the staging area <stage_dir>.  If <do_local> is
     True, save the file to the local staging area.  (See _fetch_file() for an
@@ -647,7 +657,8 @@ def _stage_file(url, stage_dir, host_hidden=False, do_local=False):
             stageFile = os.path.basename(stagePath)
 
         filename = _fetch_file(url, host_hidden=host_hidden,
-                               do_local=do_local)
+                               do_local=do_local,
+                               check_certificate=check_certificate)
         if filename != stageFile or origDir is None:
             frun("mv %s %s" % (filename, stagePath))
         if origDir is not None:
