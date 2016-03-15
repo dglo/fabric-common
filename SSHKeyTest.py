@@ -10,7 +10,7 @@ from SSHKey import SSHKeyFile
 
 
 class KeyLine(object):
-    def __init__(self, fromtext, keytype, hexkey, name):
+    def __init__(self, fromtext, keytype, hexkey, comment):
         if fromtext is None or len(fromtext) == 0:
             self.__fromlist = None
         elif type(fromtext) == str:
@@ -23,7 +23,7 @@ class KeyLine(object):
 
         self.__keytype = keytype
         self.__hexkey = hexkey
-        self.__name = name
+        self.__comment = comment
 
     def __repr__(self):
         return str(self)
@@ -33,11 +33,11 @@ class KeyLine(object):
             fromstr = ""
         else:
             fromstr = "from=\"%s\" " % ",".join(self.__fromlist)
-        if self.__name is None or len(self.__name) == 0:
-            namestr = ""
+        if self.__comment is None or len(self.__comment) == 0:
+            comstr = ""
         else:
-            namestr = " " + self.__name
-        return "%s%s %s%s" % (fromstr, self.__keytype, self.__hexkey, namestr)
+            comstr = " " + str(self.__comment)
+        return "%s%s %s%s" % (fromstr, self.__keytype, self.__hexkey, comstr)
 
     def addFromEntries(self, text):
         if text is None or len(text) == 0:
@@ -54,11 +54,17 @@ class KeyLine(object):
         else:
             self.__fromlist += newlist
 
-    def dictkey(self):
-        if self.__name is None:
-            return self.__keytype
-        return self.__name + " " + self.__keytype
+    @property
+    def comment(self):
+        return self.__comment
 
+    @property
+    def dictkey(self):
+        if self.__comment is None:
+            return self.__keytype
+        return self.__comment + " " + self.__keytype
+
+    @property
     def fromlist(self):
         return self.__fromlist
 
@@ -73,22 +79,21 @@ class KeyLine(object):
         for fl in self.__fromlist:
             fkeys[fl] = 1
         for fl in fromlist:
-            if not fl in fkeys:
+            if fl not in fkeys:
                 return False
 
         return True
 
+    @property
     def hexkey(self):
         return self.__hexkey
 
     def is_key(self):
         return True
 
+    @property
     def keytype(self):
         return self.__keytype
-
-    def name(self):
-        return self.__name
 
 
 class EmptyLine(KeyLine):
@@ -137,37 +142,37 @@ class TestSSHKey(unittest.TestCase):
         for td in templateData:
             found = None
             for dd in deployedData:
-                if td.name() == dd.name() and \
-                    td.keytype() == dd.keytype() and \
-                    td.hexkey() == dd.hexkey():
+                if td.comment == dd.comment and \
+                    td.keytype == dd.keytype and \
+                    td.hexkey == dd.hexkey:
                     if found is not None:
                         self.fail("Found multiple matches for %s" % td)
 
-                    if not td.fromlist_equals(dd.fromlist()):
+                    if not td.fromlist_equals(dd.fromlist):
                         expErr = "Found updated %s fromlist for %s" % \
-                            (td.keytype(), td.name())
+                            (td.keytype, td.comment)
                         self.assertTrue(self.__removeError(expErr),
                                         "Didn't see error \"%s\"" % expErr)
 
                     found = dd
             if found is None:
                 for dd in deployedData:
-                    if td.name() == dd.name() and \
-                        td.keytype() == dd.keytype():
-                        fromEq = td.fromlist_equals(dd.fromlist())
+                    if td.comment == dd.comment and \
+                        td.keytype == dd.keytype:
+                        fromEq = td.fromlist_equals(dd.fromlist)
                         if not allow_multiples or fromEq:
                             if found is not None:
                                 self.fail("Found too many matches for %s" % td)
 
                             expErr = "Found updated %s key for %s" % \
-                                (td.keytype(), td.name())
+                                (td.keytype, td.comment)
                             self.assertTrue(self.__removeError(expErr),
                                             "Didn't see error \"%s\"" % expErr)
 
                             found = dd
 
             if found is None:
-                expErr = "Found new %s key for %s" % (td.keytype(), td.name())
+                expErr = "Found new %s key for %s" % (td.keytype, td.comment)
                 self.assertTrue(self.__removeError(expErr),
                                 "Didn't see error \"%s\"" % expErr)
 
@@ -175,18 +180,18 @@ class TestSSHKey(unittest.TestCase):
             found = None
             partial = None
             for td in templateData:
-                if dd.name() == td.name() and \
-                    dd.keytype() == td.keytype() and \
-                    dd.hexkey() == td.hexkey():
+                if dd.comment == td.comment and \
+                    dd.keytype == td.keytype and \
+                    dd.hexkey == td.hexkey:
                     if found is not None:
                         self.fail("Found multiple matches for %s" % dd)
                     found = td
             if found is None:
                 for td in templateData:
-                    if dd.name() == td.name() and \
-                        dd.keytype() == td.keytype():
+                    if dd.comment == td.comment and \
+                        dd.keytype == td.keytype:
                         if not allow_multiples or \
-                            dd.fromlist_equals(td.fromlist()):
+                            dd.fromlist_equals(td.fromlist):
                             if found is not None:
                                 self.fail("Found multiple matches for %s" % dd)
                             found = td
@@ -196,10 +201,10 @@ class TestSSHKey(unittest.TestCase):
             if found is None:
                 if partial is not None:
                     expErr = "Deleted extra %s key for %s in \"%s\"" % \
-                        (dd.keytype(), dd.name(), deployedFile)
+                        (dd.keytype, dd.comment, deployedFile)
                 else:
                     expErr = "Deleted unknown %s key for %s in \"%s\"" % \
-                        (dd.keytype(), dd.name(), deployedFile)
+                        (dd.keytype, dd.comment, deployedFile)
                 self.assertTrue(self.__removeError(expErr),
                                 "Didn't see error \"%s\"" % expErr)
 
@@ -211,11 +216,11 @@ class TestSSHKey(unittest.TestCase):
         keys = {}
         for d in data:
             if d.is_key():
-                k = d.dictkey()
-                if not k in keys:
-                    keys[k] = {d.hexkey(): 1, }
+                k = d.dictkey
+                if k not in keys:
+                    keys[k] = {d.hexkey: 1, }
                 elif allow_multiples:
-                    keys[k][d.hexkey()] = 1
+                    keys[k][d.hexkey] = 1
         num = 0
         for k in keys:
             num += len(keys[k])
@@ -269,7 +274,7 @@ class TestSSHKey(unittest.TestCase):
         return msg in self.__error
 
     def __removeError(self, msg=None):
-        if not msg in self.__error:
+        if msg not in self.__error:
             return False
 
         self.__error.remove(msg)
@@ -280,8 +285,8 @@ class TestSSHKey(unittest.TestCase):
             if not d.is_key():
                 return
 
-            key = d.dictkey()
-            if not key in sshkeys.iterkeys():
+            key = d.dictkey
+            if key not in sshkeys.iterkeys():
                 self.fail("Cannot find entry for \"%s\"" % key)
             self.assertTrue(isinstance(sshkeys[key], list),
                             "Expected %s entry to be list, not %s" %
@@ -289,30 +294,30 @@ class TestSSHKey(unittest.TestCase):
 
             match = None
             for k in sshkeys[key]:
-                if k.hexkey() == d.hexkey():
+                if k.hexkey == d.hexkey:
                     match = k
                     break
             self.assertTrue(match is not None, "Cannot find entry for %s" % d)
-            self.assertEqual(d.name(), match.name(),
-                             "Expected name \"%s\" not \"%s\"" %
-                             (d.name(), match.name()))
-            self.assertEqual(d.keytype(), match.keytype(),
+            self.assertEqual(d.comment, match.comment,
+                             "Expected comment \"%s\" not \"%s\"" %
+                             (d.comment, match.comment))
+            self.assertEqual(d.keytype, match.keytype,
                              "Expected key type \"%s\" not \"%s\"" %
-                             (d.keytype(), match.keytype()))
-            self.assertEqual(d.hexkey(), match.hexkey(),
+                             (d.keytype, match.keytype))
+            self.assertEqual(d.hexkey, match.hexkey,
                              "Expected key \"%s\" not \"%s\"" %
-                             (d.hexkey(), match.hexkey()))
-            self.assertEqual(d.fromlist(), match.fromlist(),
+                             (d.hexkey, match.hexkey))
+            self.assertEqual(d.fromlist, match.fromlist,
                              "Expected from list \"%s\" not \"%s\"" %
-                             (d.fromlist(), match.fromlist()))
-            self.assertEqual(d.fromlist(), match.fromlist(),
+                             (d.fromlist, match.fromlist))
+            self.assertEqual(d.fromlist, match.fromlist,
                              "Expected from list \"%s\" not \"%s\"" %
-                             (d.fromlist(), match.fromlist()))
+                             (d.fromlist, match.fromlist))
             if filename is not None:
-                self.assertEqual(filename, match.filename(),
+                self.assertEqual(filename, match.filename,
                                  "Expected file name \"%s\" not \"%s\"" %
-                                 (filename, match.filename()))
-            self.assertFalse(match.is_marked(),
+                                 (filename, match.filename))
+            self.assertFalse(match.is_marked,
                              "Entry \"%s\" should not be marked" % match)
             self.assertEqual(str(d), str(match),
                              "Expected string \"%s\" not \"%s\"" %
@@ -367,17 +372,17 @@ class TestSSHKey(unittest.TestCase):
         for d in data:
             if not d.is_key():
                 continue
-            if d.dictkey() in valid:
+            if d.dictkey in valid:
                 invalid.append(d)
             else:
-                valid[d.dictkey()] = d
+                valid[d.dictkey] = d
 
         self.assertEqual(len(invalid), 1,
                          "Expected one invalid key, not %d" % len(invalid))
         self.assertTrue(self.__hasError(),
                         "No error while parsing %s" % (data, ))
         expErr = "Found multiple %s keys for %s in \"%s\"" % \
-            (invalid[0].keytype(), invalid[0].name(), tmpfile)
+            (invalid[0].keytype, invalid[0].comment, tmpfile)
         self.assertTrue(self.__removeError(expErr),
                         "Didn't see error \"%s\"" % expErr)
         self.assertFalse(self.__hasError(),
@@ -463,7 +468,7 @@ class TestSSHKey(unittest.TestCase):
         self.assertTrue(self.__hasError(),
                         "No error while parsing %s" % (data, ))
         expErr = "Found multiple %s keys for %s in \"%s\"" % \
-            (data[0].keytype(), data[0].name(), tmpfile)
+            (data[0].keytype, data[0].comment, tmpfile)
         self.assertTrue(self.__removeError(expErr),
                         "Didn't see error \"%s\"" % expErr)
         self.assertFalse(self.__hasError(),
@@ -539,19 +544,19 @@ class TestSSHKey(unittest.TestCase):
         for e in sshkeys:
             entry = e
 
-        self.assertFalse(entry.fromlist_equals(data[0].fromlist()),
+        self.assertFalse(entry.fromlist_equals(data[0].fromlist),
                          "FromList %s should not equal %s" %
-                         (entry.fromlist(), data[0].fromlist()))
-        self.assertFalse(entry.fromlist_equals(data[1].fromlist()),
+                         (entry.fromlist, data[0].fromlist))
+        self.assertFalse(entry.fromlist_equals(data[1].fromlist),
                          "FromList %s should not equal %s" %
-                         (entry.fromlist(), data[1].fromlist()))
+                         (entry.fromlist, data[1].fromlist))
 
-        merged = KeyLine(data[0].fromlist(), data[0].keytype(),
-                         data[0].hexkey(), data[0].name())
-        merged.addFromEntries(data[1].fromlist())
-        self.assertTrue(entry.fromlist_equals(merged.fromlist()),
+        merged = KeyLine(data[0].fromlist, data[0].keytype,
+                         data[0].hexkey, data[0].comment)
+        merged.addFromEntries(data[1].fromlist)
+        self.assertTrue(entry.fromlist_equals(merged.fromlist),
                          "FromList %s should not equal %s" %
-                         (entry.fromlist(), merged.fromlist()))
+                         (entry.fromlist, merged.fromlist))
 
         self.__validateData(sshkeys, (merged, ), tmpfile)
 
@@ -576,8 +581,8 @@ class TestSSHKey(unittest.TestCase):
         for e in sshkeys:
             entry = e
 
-        self.assertFalse(entry.fromlist() is not None,
-                         "FromList %s should be empty" % entry.fromlist())
+        self.assertFalse(entry.fromlist is not None,
+                         "FromList %s should be empty" % entry.fromlist)
 
         self.__validateData(sshkeys, (data[1], ), tmpfile)
 
@@ -619,24 +624,24 @@ class TestSSHKey(unittest.TestCase):
                         (self.__countKeys(data), len(sshkeys)))
 
         for entry in sshkeys:
-            if entry.name() == nofrom.name():
+            if entry.comment == nofrom.comment:
                 match = nofrom
                 diff = hasfrom
             else:
                 match = hasfrom
                 diff = nofrom
 
-            self.assertTrue(entry.fromlist_equals(match.fromlist()),
+            self.assertTrue(entry.fromlist_equals(match.fromlist),
                             "FromList %s should equal %s" %
-                            (entry.fromlist(), match.fromlist()))
-            self.assertFalse(entry.fromlist_equals(diff.fromlist()),
+                            (entry.fromlist, match.fromlist))
+            self.assertFalse(entry.fromlist_equals(diff.fromlist),
                              "FromList %s should not equal %s" %
-                             (entry.fromlist(), diff.fromlist()))
+                             (entry.fromlist, diff.fromlist))
             if match == hasfrom:
                 numList = ["123", "456"]
                 self.assertFalse(entry.fromlist_equals(numList),
                                  "FromList %s should not equal %s" %
-                                 (entry.fromlist(), numList))
+                                 (entry.fromlist, numList))
 
     def testReadWrite(self):
         data = (CommentLine(""),
@@ -927,8 +932,8 @@ class TestSSHKey(unittest.TestCase):
         for k, v in sshkeys.iteritems():
             found = False
             for d in data:
-                if v.name() == d.name() and v.keytype() == d.keytype() and \
-                    v.hexkey() == d.hexkey():
+                if v.comment == d.comment and v.keytype == d.keytype and \
+                    v.hexkey == d.hexkey:
                     found = True
                     break
             self.assertTrue(found, "Didn't find key for %s" % k)

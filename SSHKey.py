@@ -15,12 +15,12 @@ class SSHKey(object):
     NOTE: This object only supports the 'from=' option
     """
 
-    def __init__(self, fromlist, keytype, hexkey, name, filename):
+    def __init__(self, fromlist, keytype, hexkey, comment, filename):
         "Initialize an SSH key"
         self.__fromlist = fromlist
         self.__keytype = keytype
         self.__hexkey = hexkey
-        self.__name = name
+        self.__comment = comment
         self.__filename = filename
         self.__marked = False
 
@@ -28,12 +28,19 @@ class SSHKey(object):
         "Return a formatted SSH key"
         return self.format(abridge=True)
 
+    @property
+    def comment(self):
+        "Return the comment field"
+        return self.__comment
+
+    @property
     def dictkey(self):
         "Return the string to use as a dictionary key"
-        if self.__name is None:
+        if self.__comment is None:
             return self.__keytype
-        return self.__name + " " + self.__keytype
+        return self.__comment + " " + self.__keytype
 
+    @property
     def filename(self):
         "Return the name of the file where this key is stored"
         return self.__filename
@@ -48,12 +55,13 @@ class SSHKey(object):
             keystr = self.__hexkey
         else:
             keystr = "AA..." + self.__hexkey[-7:]
-        if self.__name is None or len(self.__name) == 0:
-            namestr = ""
+        if self.__comment is None or len(self.__comment) == 0:
+            comstr = ""
         else:
-            namestr = " " + self.__name
-        return "%s%s %s%s" % (fromstr, self.__keytype, keystr, namestr)
+            comstr = " " + self.__comment
+        return "%s%s %s%s" % (fromstr, self.__keytype, keystr, comstr)
 
+    @property
     def fromlist(self):
         "Return the list of host(s) to which this key applies"
         if self.__fromlist is None:
@@ -79,16 +87,18 @@ class SSHKey(object):
         blist = otherlist[:]
         blist.sort()
 
-        for n in range(len(alist)):
-            if alist[n] != blist[n]:
+        for idx in range(len(alist)):
+            if alist[idx] != blist[idx]:
                 return False
 
         return True
 
+    @property
     def hexkey(self):
         "Return the hexadecimal key string"
         return self.__hexkey
 
+    @property
     def is_marked(self):
         "Has this key been marked to be saved?"
         return self.__marked
@@ -103,15 +113,12 @@ class SSHKey(object):
             self.__fromlist = None
         else:
             fdict = {}
-            for f in (fromlist, self.__fromlist):
-                for v in f:
-                    fdict[v] = 1
+            for flist in (fromlist, self.__fromlist):
+                for val in flist:
+                    fdict[val] = 1
             self.__fromlist = fdict.keys()
 
-    def name(self):
-        "Return the username"
-        return self.__name
-
+    @property
     def keytype(self):
         "Return the SSH key type"
         return self.__keytype
@@ -122,8 +129,8 @@ class SSHKey(object):
             self.__fromlist = None
         else:
             self.__fromlist = []
-            for v in newlist:
-                self.__fromlist.append(v)
+            for val in newlist:
+                self.__fromlist.append(val)
 
 
 class SSHKeyFile(object):
@@ -132,8 +139,6 @@ class SSHKeyFile(object):
     """
     PAT = re.compile(r"^(from=\"([^\"]+)\"\s+)?(\S+)\s+(\S+)(\s+(\S+))?\s*$")
     COMMENT = re.compile(r"^\s*# ?(.*)$")
-
-    AM = True
 
     def __init__(self, path, error_func=None, allow_multiples=False):
         """
@@ -154,7 +159,7 @@ class SSHKeyFile(object):
         del self.__keys[key]
 
     def __getitem__(self, key):
-        if not key in self.__keys:
+        if key not in self.__keys:
             return None
         return self.__keys[key]
 
@@ -171,22 +176,22 @@ class SSHKeyFile(object):
 
     def __str__(self):
         rtnstr = None
-        for k in self.__keys:
+        for key in self.__keys:
             if rtnstr is None:
-                rtnstr = "%s: %s" % (k, self.__keys[k])
+                rtnstr = "%s: %s" % (key, self.__keys[key])
             else:
-                rtnstr += "\n%s: %s" % (k, self.__keys[k])
+                rtnstr += "\n%s: %s" % (key, self.__keys[key])
         return rtnstr
 
-    def __addKey(self, authkeys, newkey):
+    def __add_key(self, authkeys, newkey):
         "Add SSHKey 'newkey' to the 'authkeys' dictionary"
-        hashstr = newkey.dictkey()
-        if not hashstr in authkeys:
+        hashstr = newkey.dictkey
+        if hashstr not in authkeys:
             authkeys[hashstr] = [newkey, ]
         else:
             match = None
             for key in authkeys[hashstr]:
-                if key.hexkey() == newkey.hexkey():
+                if key.hexkey == newkey.hexkey:
                     match = key
                     break
             if match is None:
@@ -194,16 +199,16 @@ class SSHKeyFile(object):
                     return False
                 authkeys[hashstr].append(newkey)
             else:
-                if newkey.fromlist() is None or match.fromlist() is None:
+                if newkey.fromlist is None or match.fromlist is None:
                     # if either fromlist is unqualified,
                     # don't need a list of host qualifiers
                     match.set_fromlist(None)
                 else:
-                    match.merge_fromlist(newkey.fromlist())
+                    match.merge_fromlist(newkey.fromlist)
 
         return True
 
-    def __mergeMultiple(self, origkeys, error_func=None, ignore_extra=False):
+    def __merge_multiple(self, origkeys, error_func=None, ignore_extra=False):
         """
         Check this dictionary of SSH keys against the original dictionary in
         'origkeys'.  Move any original entries which are not in this dictionary
@@ -221,51 +226,51 @@ class SSHKeyFile(object):
 
         delkeys = {}
         delobjs = []
-        for k in origkeys.iterkeys():
-            if not k in self.__keys:
+        for key in origkeys.iterkeys():
+            if key not in self.__keys:
                 if error_func is not None:
-                    for v in origkeys[k]:
+                    for val in origkeys[key]:
                         error_func(("Deleted unknown %s key for %s" +
-                                    " in \"%s\"") % \
-                                   (v.keytype(), v.name(), v.filename()))
-                    delkeys[k] = 1
+                                    " in \"%s\"") %
+                                   (val.keytype, val.comment, val.filename))
+                    delkeys[key] = 1
                 changed = True
             else:
-                for o in origkeys[k]:
+                for orig in origkeys[key]:
 
                     match = None
-                    killKey = False
+                    kill_key = False
 
-                    for v in self.__keys[k]:
-                        if o.hexkey() == v.hexkey():
-                            if v.is_marked():
+                    for val in self.__keys[key]:
+                        if orig.hexkey == val.hexkey:
+                            if val.is_marked:
                                 continue
-                            v.mark()
+                            val.mark()
 
-                            if not o.fromlist_equals(v.fromlist()):
+                            if not orig.fromlist_equals(val.fromlist):
                                 if error_func is not None:
                                     error_func(("Found updated %s fromlist" +
                                                 " for %s") %
-                                               (o.keytype(), o.name()))
-                                v.merge_fromlist(o.fromlist())
-                                killKey = True
+                                               (orig.keytype, orig.comment))
+                                val.merge_fromlist(orig.fromlist)
+                                kill_key = True
 
-                            match = v
+                            match = val
                             break
 
                     if match is None:
-                        for v in self.__keys[k]:
-                            if o.fromlist_equals(v.fromlist()):
-                                if v.is_marked():
+                        for val in self.__keys[key]:
+                            if orig.fromlist_equals(val.fromlist):
+                                if val.is_marked:
                                     continue
-                                v.mark()
+                                val.mark()
 
                                 if error_func is not None:
                                     error_func("Found updated %s key for %s" %
-                                               (o.keytype(), o.name()))
+                                               (orig.keytype, orig.comment))
 
-                                match = v
-                                killKey = True
+                                match = val
+                                kill_key = True
                                 break
 
                     if match is None:
@@ -273,52 +278,52 @@ class SSHKeyFile(object):
                             if error_func is not None:
                                 error_func(("Ignoring extra %s key for %s" +
                                             " in \"%s\"") %
-                                           (o.keytype(), o.name(),
-                                            o.filename()))
+                                           (orig.keytype, orig.comment,
+                                            orig.filename))
                         else:
                             if error_func is not None:
                                 error_func(("Deleted extra %s key for %s" +
                                             " in \"%s\"") %
-                                           (o.keytype(), o.name(),
-                                            o.filename()))
+                                           (orig.keytype, orig.comment,
+                                            orig.filename))
 
-                            killKey = True
+                            kill_key = True
 
-                    if killKey:
-                        if not k in deaddict:
-                            deaddict[k] = [o, ]
+                    if kill_key:
+                        if key not in deaddict:
+                            deaddict[key] = [orig, ]
                         else:
-                            deaddict[k].append(o)
-                        if len(origkeys[k]) == 1:
-                            delkeys[k] = 1
+                            deaddict[key].append(orig)
+                        if len(origkeys[key]) == 1:
+                            delkeys[key] = 1
                         else:
-                            delobjs.append(o)
+                            delobjs.append(orig)
                         changed = True
 
-        for k in delkeys:
-            del origkeys[k]
-        for o in delobjs:
+        for key in delkeys:
+            del origkeys[key]
+        for obj in delobjs:
             found = False
-            for k in origkeys.iterkeys():
-                if o in origkeys[k]:
-                    origkeys[k].remove(o)
+            for key in origkeys.iterkeys():
+                if obj in origkeys[key]:
+                    origkeys[key].remove(obj)
                     found = True
                     break
             if not found and error_func is not None:
                 error_func("Could not remove %s key for %s" %
-                           (v.keytype(), v.name()))
+                           (obj.keytype, obj.comment))
 
-        for k in self.__keys.iterkeys():
-            for v in self.__keys[k]:
-                if not v.is_marked():
+        for key in self.__keys.iterkeys():
+            for val in self.__keys[key]:
+                if not val.is_marked:
                     if error_func is not None:
                         error_func("Found new %s key for %s" %
-                                   (v.keytype(), v.name()))
+                                   (val.keytype, val.comment))
                     changed = True
 
         return (changed, deaddict)
 
-    def __mergeSingle(self, origkeys, error_func=None):
+    def __merge_single(self, origkeys, error_func=None):
         """
         Check this dictionary of SSH keys against the original dictionary in
         'origkeys'.  Move any original entries which are not in this dictionary
@@ -335,53 +340,53 @@ class SSHKeyFile(object):
         deaddict = {}
 
         delkeys = {}
-        for k in origkeys.iterkeys():
-            if not k in self.__keys:
+        for key in origkeys.iterkeys():
+            if key not in self.__keys:
                 if error_func is not None:
-                    for v in origkeys[k]:
+                    for val in origkeys[key]:
                         error_func(("Deleted unknown %s key for %s" +
-                                    " in \"%s\"") % \
-                                   (v.keytype(), v.name(), v.filename()))
-                    delkeys[k] = 1
+                                    " in \"%s\"") %
+                                   (val.keytype, val.comment, val.filename))
+                    delkeys[key] = 1
                 changed = True
             else:
-                for o in origkeys[k]:
-                    if len(self.__keys[k]) != 1:
+                for orig in origkeys[key]:
+                    if len(self.__keys[key]) != 1:
                         raise SSHKeyException(("Expected one entry for" +
                                                " %s, not %d") %
-                                              (k, len(self.__keys[k])))
-                    v = self.__keys[k][0]
+                                              (key, len(self.__keys[key])))
+                    val = self.__keys[key][0]
 
-                    killKey = False
-                    if o.hexkey() != v.hexkey():
+                    kill_key = False
+                    if orig.hexkey != val.hexkey:
                         if error_func is not None:
                             error_func("Found updated %s key for %s" %
-                                       (o.keytype(), o.name()))
-                        killKey = True
-                    elif not o.fromlist_equals(v.fromlist()):
+                                       (orig.keytype, orig.comment))
+                        kill_key = True
+                    elif not orig.fromlist_equals(val.fromlist):
                         if error_func is not None:
                             error_func("Found updated %s fromlist for %s" %
-                                       (o.keytype(), o.name()))
-                        killKey = True
-                        v.merge_fromlist(o.fromlist())
+                                       (orig.keytype, orig.comment))
+                        kill_key = True
+                        val.merge_fromlist(orig.fromlist)
 
-                    if killKey:
-                        if not k in deaddict:
-                            deaddict[k] = origkeys[k][:]
+                    if kill_key:
+                        if key not in deaddict:
+                            deaddict[key] = origkeys[key][:]
                         else:
-                            deaddict[k] += origkeys[k]
+                            deaddict[key] += origkeys[key]
                         changed = True
-                    v.mark()
+                    val.mark()
 
-        for k in delkeys:
-            del origkeys[k]
+        for key in delkeys:
+            del origkeys[key]
 
-        for k in self.__keys.iterkeys():
-            for v in self.__keys[k]:
-                if not v.is_marked():
+        for key in self.__keys.iterkeys():
+            for val in self.__keys[key]:
+                if not val.is_marked:
                     if error_func is not None:
                         error_func("Found new %s key for %s" %
-                                   (v.keytype(), v.name()))
+                                   (val.keytype, val.comment))
                     changed = True
 
         return (changed, deaddict)
@@ -393,20 +398,20 @@ class SSHKeyFile(object):
         Return the dictionary of SSHKey objects.
         """
         keydict = {}
-        for f in os.listdir(dirname):
-            path = os.path.join(dirname, f)
+        for fnm in os.listdir(dirname):
+            path = os.path.join(dirname, fnm)
             if not os.path.isfile(path):
                 continue
 
             checkdict = self.__read_file(path, error_func)
-            for k, v in checkdict.iteritems():
-                if not k in keydict:
-                    keydict[k] = v
+            for key, val in checkdict.iteritems():
+                if key not in keydict:
+                    keydict[key] = val
                 elif error_func is not None:
                     error_func(("Ignoring %s key for %s from \"%s\"" +
-                                " (using version from \"%s\")") % \
-                                (v.keytype(), v.name(), v.filename(),
-                                 keydict[k][0].filename()))
+                                " (using version from \"%s\")") %
+                                (val.keytype, val.comment, val.filename,
+                                 keydict[key][0].filename))
         return keydict
 
     def __read_file(self, filename, error_func=None):
@@ -416,8 +421,8 @@ class SSHKeyFile(object):
         Return the dictionary of SSHKey objects.
         """
         authkeys = {}
-        with open(filename, "r") as fd:
-            for line in fd:
+        with open(filename, "r") as fin:
+            for line in fin:
                 line = line.rstrip()
                 if len(line) == 0:
                     continue
@@ -440,21 +445,21 @@ class SSHKeyFile(object):
                     fromlist = m.group(2).split(",")
                 keytype = m.group(3)
                 keystr = m.group(4)
-                name = m.group(6)
+                comment = m.group(6)
 
-                obj = SSHKey(fromlist, keytype, keystr, name, filename)
+                obj = SSHKey(fromlist, keytype, keystr, comment, filename)
 
-                if not self.__addKey(authkeys, obj):
+                if not self.__add_key(authkeys, obj):
                     error_func("Found multiple %s keys for %s in \"%s\"" %
-                               (keytype, name, filename))
+                               (keytype, comment, filename))
 
         return authkeys
 
     def add(self, newkey):
         "Add an SSHKey object"
-        if not self.__addKey(self.__keys, newkey):
+        if not self.__add_key(self.__keys, newkey):
             raise SSHKeyException("A %s key already exists for %s" %
-                                  (newkey.keytype(), newkey.name()))
+                                  (newkey.keytype, newkey.comment))
 
     def iteritems(self):
         "Iterate through the data, returning dictionary key/value pairs"
@@ -480,19 +485,19 @@ class SSHKeyFile(object):
 
         """
         if not self.__allow_multiples:
-            return self.__mergeSingle(origkeys, error_func=error_func)
+            return self.__merge_single(origkeys, error_func=error_func)
 
-        return self.__mergeMultiple(origkeys, error_func=error_func,
-                                    ignore_extra=ignore_extra)
+        return self.__merge_multiple(origkeys, error_func=error_func,
+                                     ignore_extra=ignore_extra)
 
     def write(self, filename, file_header=None):
         "Write the SSH keys to 'filename'"
-        with open(filename, "w") as fd:
+        with open(filename, "w") as fout:
             if file_header is not None:
-                print >> fd, "#"
+                print >> fout, "#"
                 for hline in file_header.split("\n"):
-                    print >> fd, "# " + str(hline)
-                print >> fd, "#"
-            for k in sorted(self.__keys.iterkeys()):
-                for val in self.__keys[k]:
-                    print >> fd, val.format()
+                    print >> fout, "# " + str(hline)
+                print >> fout, "#"
+            for key in sorted(self.__keys.iterkeys()):
+                for val in self.__keys[key]:
+                    print >> fout, val.format()
