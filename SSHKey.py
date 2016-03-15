@@ -403,20 +403,36 @@ class SSHKeyFile(object):
         Return the dictionary of SSHKey objects.
         """
         keydict = {}
+        hexdict = {}
         for fnm in os.listdir(dirname):
             path = os.path.join(dirname, fnm)
             if not os.path.isfile(path):
                 continue
 
             checkdict = self.__read_file(path, error_func)
-            for key, val in checkdict.iteritems():
-                if key not in keydict:
-                    keydict[key] = val
-                elif error_func is not None:
-                    error_func(("Ignoring %s key for %s from \"%s\"" +
-                                " (using version from \"%s\")") %
-                                (val.keytype, val.comment, val.filename,
-                                 keydict[key][0].filename))
+            for key, ckval in checkdict.iteritems():
+                if isinstance(ckval, SSHKey):
+                    vlist = (ckval, )
+                else:
+                    vlist = ckval
+                addlist = []
+                for val in vlist:
+                    if val.hexkey not in hexdict:
+                        addlist.append(val)
+                    else:
+                        error_func("Ignoring \"%s\" key which duplicates"
+                                   " earlier \"%s\"" %
+                                   (val.comment, hexdict[val.hexkey].comment))
+                        continue
+                if len(addlist) > 0:
+                    if key not in keydict:
+                        keydict[key] = addlist
+                    elif error_func is not None:
+                        error_func("Ignoring %s key for %s from \"%s\""
+                                   " (using version from \"%s\")" %
+                                   (addlist[0].keytype, addlist[0].comment,
+                                    addlist[0].filename,
+                                    keydict[key][0].filename))
         return keydict
 
     def __read_file(self, filename, error_func=None):
@@ -425,7 +441,7 @@ class SSHKeyFile(object):
         Report any errors using 'error_func(msg)'.
         Return the dictionary of SSHKey objects.
         """
-        authkeys = {}
+        authhex = {}
         with open(filename, "r") as fin:
             for line in fin:
                 line = line.rstrip()
@@ -454,9 +470,17 @@ class SSHKeyFile(object):
 
                 obj = SSHKey(fromlist, keytype, keystr, comment, filename)
 
-                if not self.__add_key(authkeys, obj):
-                    error_func("Found multiple %s keys for %s in \"%s\"" %
-                               (keytype, comment, filename))
+                if fromlist is None:
+                    hexkey = keystr
+                else:
+                    hexkey = ",".join(fromlist) + " " + keystr
+                authhex[hexkey] = obj
+
+        authkeys = {}
+        for obj in authhex.itervalues():
+            if not self.__add_key(authkeys, obj):
+                error_func("Found multiple %s keys for %s in \"%s\"" %
+                           (obj.keytype, obj.comment, obj.filename))
 
         return authkeys
 
@@ -473,7 +497,7 @@ class SSHKeyFile(object):
     def __replace_one_duplicate_hexkey(self, origkeys):
         "Return False once we've replaced a duplicate key"
         for okey, oval in origkeys.iteritems():
-            for nkey, nlist  in self.__keys.iteritems():
+            for nkey, nlist in self.__keys.iteritems():
                 for nval in nlist:
                     if nval.hexkey == oval.hexkey and nkey != okey:
                         if len(self.__keys[nkey]) == 1:
@@ -484,6 +508,7 @@ class SSHKeyFile(object):
                             self.__keys[okey] = []
                         self.__keys[okey].append(oval)
                         return False
+
         return True
 
     def add(self, newkey):
