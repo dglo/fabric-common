@@ -137,7 +137,7 @@ class SSHKeyFile(object):
     """
     Manage a file of SSH public keys
     """
-    PAT = re.compile(r"^(from=\"([^\"]+)\"\s+)?(\S+)\s+(\S+)(\s+(\S+))?\s*$")
+    PAT = re.compile(r"^(from=\"([^\"]+)\"\s+)?(\S+)\s+(\S+)(\s+(.*))?\s*$")
     COMMENT = re.compile(r"^\s*# ?(.*)$")
 
     def __init__(self, path, error_func=None, allow_multiples=False):
@@ -221,11 +221,16 @@ class SSHKeyFile(object):
         if any keys were added, deleted, or modified.
 
         """
+
+        # replace duplicated keys with original entries
+        self.__replace_duplicate_hexkeys(origkeys)
+
         changed = False
         deaddict = {}
 
         delkeys = {}
         delobjs = []
+
         for key in origkeys.iterkeys():
             if key not in self.__keys:
                 if error_func is not None:
@@ -455,6 +460,32 @@ class SSHKeyFile(object):
 
         return authkeys
 
+    def __replace_duplicate_hexkeys(self, origkeys):
+        """
+        Repeatedly replace a duplicated key with the original version
+        until all duplicates have been replaced
+        """
+        while True:
+            done = self.__replace_one_duplicate_hexkey(origkeys)
+            if done:
+                break
+
+    def __replace_one_duplicate_hexkey(self, origkeys):
+        "Return False once we've replaced a duplicate key"
+        for okey, oval in origkeys.iteritems():
+            for nkey, nlist  in self.__keys.iteritems():
+                for nval in nlist:
+                    if nval.hexkey == oval.hexkey and nkey != okey:
+                        if len(self.__keys[nkey]) == 1:
+                            del self.__keys[nkey]
+                        else:
+                            del self.__keys[nkey][nlist.index(nval)]
+                        if okey not in self.__keys:
+                            self.__keys[okey] = []
+                        self.__keys[okey].append(oval)
+                        return False
+        return True
+
     def add(self, newkey):
         "Add an SSHKey object"
         if not self.__add_key(self.__keys, newkey):
@@ -501,3 +532,13 @@ class SSHKeyFile(object):
             for key in sorted(self.__keys.iterkeys()):
                 for val in self.__keys[key]:
                     print >> fout, val.format()
+
+
+if __name__ == "__main__":
+    import sys
+
+    def print_error(msg):
+        print >>sys.stderr, "*** ERROR: %s ***" % msg
+
+    for arg in sys.argv[1:]:
+        ssf = SSHKeyFile(arg, error_func=print_error, allow_multiples=True)
