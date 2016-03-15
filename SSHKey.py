@@ -175,9 +175,9 @@ class SSHKeyFile(object):
         return tot
 
     def __str__(self):
-        rtnstr = None
+        rtnstr = ""
         for key in self.__keys:
-            if rtnstr is None:
+            if len(rtnstr) == 0:
                 rtnstr = "%s: %s" % (key, self.__keys[key])
             else:
                 rtnstr += "\n%s: %s" % (key, self.__keys[key])
