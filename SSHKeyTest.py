@@ -433,27 +433,6 @@ class TestSSHKey(unittest.TestCase):
         finally:
             shutil.rmtree(tmpdir)
 
-    def testBadLine(self):
-        data = (KeyLine(None, "ssh-dss", "AAAA123w==", "split field"), )
-
-        tmpfile = self.__createFile("testBadLine", data)
-        try:
-            sshkeys = SSHKeyFile(tmpfile, self.__addError)
-        finally:
-            os.remove(tmpfile)
-
-        self.assertTrue(self.__hasError(),
-                        "No error while parsing %s" % (data, ))
-        expErr = "Bad line \"%s\" in \"%s\"" % (data[0], tmpfile)
-        self.assertTrue(self.__removeError(expErr),
-                        "Didn't see error \"%s\"" % expErr)
-        self.assertFalse(self.__hasError(),
-                         "Found extra error(s) while parsing %s: %s" %
-                         (data, self.__error))
-
-        self.assertTrue(len(sshkeys) == 0,
-                        "Expected 0 keys, not %d" % len(sshkeys))
-
     def testMultiLine(self):
         data = (KeyLine(None, "ssh-dss", "AAAA123w==", "foo@bar.baz"),
                 KeyLine(None, "ssh-dss", "AAAA987w==", "foo@bar.baz"))
