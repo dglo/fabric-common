@@ -405,7 +405,7 @@ class TestSSHKey(unittest.TestCase):
                 )
 
             allkeys = []
-            for i in xrange(len(alldata)):
+            for i in range(len(alldata)):
                 tmpfile = self.__createFile("testReadDir%d" % i,
                                             (alldata[i], ), dirname=tmpdir)
                 allkeys.append(SSHKeyFile(tmpfile, self.__addError))
@@ -822,7 +822,7 @@ class TestSSHKey(unittest.TestCase):
 
         extraKey = KeyLine(None, "ssh-dss", "AAAAX9Y8Z7w==", "multi@bar.baz")
 
-        for mergeType in xrange(0, 12):
+        for mergeType in range(0, 12):
             (active, templateData, deployedData) = \
                 self.__createMerged(templateBase[:], deployedBase[:], extraKey,
                                     mergeType)
