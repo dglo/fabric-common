@@ -180,7 +180,7 @@ def _is_bad_cron_line(crontext):
     if crontext is None or len(crontext) != len(bad_cron_line):
         return False
 
-    for i in xrange(len(bad_cron_line)):
+    for i in range(len(bad_cron_line)):
         if ord(crontext[i]) != bad_cron_line[i]:
             return False
 
