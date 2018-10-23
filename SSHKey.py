@@ -81,11 +81,8 @@ class SSHKey(object):
         if len(self.__fromlist) != len(otherlist):
             return False
 
-        alist = self.__fromlist[:]
-        alist.sort()
-
-        blist = otherlist[:]
-        blist.sort()
+        alist = sorted(self.__fromlist)
+        blist = sorted(otherlist)
 
         for idx in range(len(alist)):
             if alist[idx] != blist[idx]:

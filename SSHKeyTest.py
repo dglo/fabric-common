@@ -13,9 +13,9 @@ class KeyLine(object):
     def __init__(self, fromtext, keytype, hexkey, comment):
         if fromtext is None or len(fromtext) == 0:
             self.__fromlist = None
-        elif type(fromtext) == str:
+        elif isinstance(fromtext, str):
             self.__fromlist = fromtext.split(",")
-        elif type(fromtext) == list:
+        elif isinstance(fromtext, list):
             self.__fromlist = fromtext
         else:
             raise Exception("Unknown fromtext %s<%s>" %
@@ -42,9 +42,9 @@ class KeyLine(object):
     def addFromEntries(self, text):
         if text is None or len(text) == 0:
             return
-        elif type(text) == str:
+        elif isinstance(text, str):
             newlist = text.split(",")
-        elif type(text) == list:
+        elif isinstance(text, list):
             newlist = text
         else:
             raise Exception("Unknown text %s<%s>" % (text, type(text)))
