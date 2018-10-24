@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
+
 import os
 import re
 
@@ -113,7 +115,7 @@ class SSHKey(object):
             for flist in (fromlist, self.__fromlist):
                 for val in flist:
                     fdict[val] = 1
-            self.__fromlist = fdict.keys()
+            self.__fromlist = sorted(fdict.keys())
 
     @property
     def keytype(self):
@@ -228,7 +230,7 @@ class SSHKeyFile(object):
         delkeys = {}
         delobjs = []
 
-        for key in origkeys.iterkeys():
+        for key in origkeys.keys():
             if key not in self.__keys:
                 if error_func is not None:
                     for val in origkeys[key]:
@@ -306,7 +308,7 @@ class SSHKeyFile(object):
             del origkeys[key]
         for obj in delobjs:
             found = False
-            for key in origkeys.iterkeys():
+            for key in origkeys.keys():
                 if obj in origkeys[key]:
                     origkeys[key].remove(obj)
                     found = True
@@ -315,7 +317,7 @@ class SSHKeyFile(object):
                 error_func("Could not remove %s key for %s" %
                            (obj.keytype, obj.comment))
 
-        for key in self.__keys.iterkeys():
+        for key in self.__keys.keys():
             for val in self.__keys[key]:
                 if not val.is_marked:
                     if error_func is not None:
@@ -342,7 +344,7 @@ class SSHKeyFile(object):
         deaddict = {}
 
         delkeys = {}
-        for key in origkeys.iterkeys():
+        for key in origkeys.keys():
             if key not in self.__keys:
                 if error_func is not None:
                     for val in origkeys[key]:
@@ -383,7 +385,7 @@ class SSHKeyFile(object):
         for key in delkeys:
             del origkeys[key]
 
-        for key in self.__keys.iterkeys():
+        for key in self.__keys.keys():
             for val in self.__keys[key]:
                 if not val.is_marked:
                     if error_func is not None:
@@ -407,7 +409,7 @@ class SSHKeyFile(object):
                 continue
 
             checkdict = self.__read_file(path, error_func)
-            for key, ckval in checkdict.iteritems():
+            for key, ckval in checkdict.items():
                 if isinstance(ckval, SSHKey):
                     vlist = (ckval, )
                 else:
@@ -474,7 +476,7 @@ class SSHKeyFile(object):
                 authhex[hexkey] = obj
 
         authkeys = {}
-        for obj in authhex.itervalues():
+        for obj in authhex.values():
             if not self.__add_key(authkeys, obj):
                 error_func("Found multiple %s keys for %s in \"%s\"" %
                            (obj.keytype, obj.comment, obj.filename))
@@ -493,8 +495,8 @@ class SSHKeyFile(object):
 
     def __replace_one_duplicate_hexkey(self, origkeys):
         "Return False once we've replaced a duplicate key"
-        for okey, oval in origkeys.iteritems():
-            for nkey, nlist in self.__keys.iteritems():
+        for okey, oval in origkeys.items():
+            for nkey, nlist in self.__keys.items():
                 for nval in nlist:
                     if nval.hexkey == oval.hexkey and nkey != okey:
                         if len(self.__keys[nkey]) == 1:
@@ -514,15 +516,21 @@ class SSHKeyFile(object):
             raise SSHKeyException("A %s key already exists for %s" %
                                   (newkey.keytype, newkey.comment))
 
-    def iteritems(self):
+    def items(self):
         "Iterate through the data, returning dictionary key/value pairs"
         for key in self.__keys:
             for val in self.__keys[key]:
                 yield key, val
 
+    def iteritems(self):
+        return self.items()
+
     def iterkeys(self):
+        return self.keys()
+
+    def keys(self):
         "Iterate through the data, returning dictionary keys"
-        return self.__keys.iterkeys()
+        return self.__keys.keys()
 
     def merge(self, origkeys, error_func=None, ignore_extra=False):
         """
@@ -547,20 +555,20 @@ class SSHKeyFile(object):
         "Write the SSH keys to 'filename'"
         with open(filename, "w") as fout:
             if file_header is not None:
-                print >> fout, "#"
+                print("#", file=fout)
                 for hline in file_header.split("\n"):
-                    print >> fout, "# " + str(hline)
-                print >> fout, "#"
-            for key in sorted(self.__keys.iterkeys()):
+                    print("# " + str(hline), file=fout)
+                print("#", file=fout)
+            for key in sorted(self.__keys.keys()):
                 for val in self.__keys[key]:
-                    print >> fout, val.format()
+                    print(val.format(), file=fout)
 
 
 if __name__ == "__main__":
     import sys
 
     def print_error(msg):
-        print >>sys.stderr, "*** ERROR: %s ***" % msg
+        print("*** ERROR: %s ***" % msg, file=sys.stderr)
 
     for arg in sys.argv[1:]:
         ssf = SSHKeyFile(arg, error_func=print_error, allow_multiples=True)
