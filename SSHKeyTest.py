@@ -265,7 +265,7 @@ class TestSSHKey(unittest.TestCase):
 
     def __dumpKeys(self, keys, name):
         print("=== %s" % name)
-        for k in keys.iterkeys():
+        for k in keys.keys():
             print("  %s" % str(k))
             for v in keys[k]:
                 print("    %s" % str(v))
@@ -288,7 +288,7 @@ class TestSSHKey(unittest.TestCase):
                 return
 
             key = d.dictkey
-            if key not in sshkeys.iterkeys():
+            if key not in sshkeys.keys():
                 self.fail("Cannot find entry for \"%s\"" % key)
             self.assertTrue(isinstance(sshkeys[key], list),
                             "Expected %s entry to be list, not %s" %
@@ -678,8 +678,8 @@ class TestSSHKey(unittest.TestCase):
                             "Expected %d keys, not %d" %
                             (self.__countKeys(data), len(sshkeys2)))
 
-            for key in sshkeys.iterkeys():
-                self.assertTrue(key in sshkeys2.iterkeys(),
+            for key in sshkeys.keys():
+                self.assertTrue(key in sshkeys2.keys(),
                                 "Didn't find \"%s\" in written file" % key)
 
         finally:
@@ -910,7 +910,7 @@ class TestSSHKey(unittest.TestCase):
 
         self.__validateData(sshkeys, data, tmpfile)
 
-        for k, v in sshkeys.iteritems():
+        for k, v in sshkeys.items():
             found = False
             for d in data:
                 if v.comment == d.comment and v.keytype == d.keytype and \
