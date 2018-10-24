@@ -585,7 +585,7 @@ def _ssh_authorize_key(do_local=False):
 
         # merge in id_dsa.pub if it's not in the authorized_keys file
         # or if it's been changed
-        for k, v in new_key.iteritems():
+        for k, v in new_key.items():
             if not k in rmt_keys:
                 rmt_keys.add(v)
                 changed = True
