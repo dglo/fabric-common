@@ -12,6 +12,8 @@ Prerequisites: fabric python module on PYTHONPATH; python 2.6 (or, for 2.5, add
 to the list of imports below).
 """
 
+from __future__ import print_function
+
 import getpass
 import os
 import shutil
@@ -59,11 +61,11 @@ def confirm_with_details(f):
     """
     def new(*args, **kwargs):
         if f.__doc__:
-            print f.__doc__
+            print(f.__doc__)
         if confirm("%s?" % f.__name__, default=False):
             return f(*args, **kwargs)
         else:
-            print "skipping %s!" % f.__name__
+            print("skipping %s!" % f.__name__)
     return new
 
 
@@ -232,7 +234,7 @@ def _add_cron_literal(line, do_local=False):
 def _write_tempfile_and_return_name(text):
     (handle, tmpfile) = tempfile.mkstemp()
     f = os.fdopen(handle, "w")
-    print >> f, text
+    print(text, file=f)
     f.close()
     return tmpfile
 
@@ -299,7 +301,7 @@ def _check_tunnel(gateway_host, tunnel_host, local_port):
                 sock.connect(("localhost", local_port))
                 connected = True
             except socket.error:
-                print "waiting for %s tunnel to be created" % tunnel_host
+                print("waiting for %s tunnel to be created" % tunnel_host)
                 time.sleep(1)
             sock.close()
 
@@ -430,7 +432,7 @@ def _get_password(prompt1, prompt2=None):
         pp2 = getpass.getpass(prompt2 + ": ")
         if passwd == pp2:
             break
-        print >>sys.stderr, "Password mismatch, please try again."
+        print("Password mismatch, please try again.", file=sys.stderr)
 
     return passwd
 
@@ -525,11 +527,11 @@ def _remove_cron_rule(rule, do_local=False):
     f = os.fdopen(handle, "w")
     for line in crontext.split("\n"):
         if line.find(rule) < 0:
-            print >>f, line
+            print(line, file=f)
     f.close()
 
     with hide("running", "stdout", "stderr"):
-        print "Removing cron job %s" % rule
+        print("Removing cron job %s" % rule)
         if not do_local:
             put(tmpfile, tmpfile)
 
@@ -624,7 +626,7 @@ def _ssh_genkey(keyfile=".ssh/id_dsa", do_local=False):
         passphrase = _get_password(prompt1, prompt2)
 
         with hide("running"):
-            print "Generating SSH key"
+            print("Generating SSH key")
             frun("(echo '%s'; echo '%s') | ssh-keygen -t dsa -f '%s'" %
                 (passphrase, passphrase, keypath))
 
@@ -717,7 +719,7 @@ def _svn_checkout(svn_url, dir_name, username=None, update_existing=True,
                         user_arg = "--username %s " % username
                     else:
                         user_arg = ""
-                    print "svn co %s%s %s" % (user_arg, svn_url, path)
+                    print("svn co %s%s %s" % (user_arg, svn_url, path))
                     if tmppass is not None:
                         pass_arg = "--password %s " % tmppass
                     else:
@@ -734,8 +736,8 @@ def _svn_checkout(svn_url, dir_name, username=None, update_existing=True,
 
             attempts += 1
             if attempts > 3:
-                print >>sys.stderr, "Giving up after %d attempts" % \
-                      (attempts - 1)
+                print("Giving up after %d attempts" % \
+                      (attempts - 1), file=sys.stderr)
                 break
 
 
