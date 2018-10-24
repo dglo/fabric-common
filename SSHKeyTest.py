@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
+
 import filecmp
 import os
 import shutil
@@ -128,7 +130,7 @@ class TestSSHKey(unittest.TestCase):
 
         fd = open(tmpfile, "w")
         for d in data:
-            print >>fd, str(d)
+            print(str(d), file=fd)
 
         fd.close()
 
@@ -262,11 +264,11 @@ class TestSSHKey(unittest.TestCase):
         return (active, templateData, deployedData)
 
     def __dumpKeys(self, keys, name):
-        print "=== %s" % name
+        print("=== %s" % name)
         for k in keys.iterkeys():
-            print "  " + str(k)
+            print("  %s" % str(k))
             for v in keys[k]:
-                print "    " + str(v)
+                print("    %s" % str(v))
 
     def __hasError(self, msg=None):
         if msg is None:
@@ -652,14 +654,14 @@ class TestSSHKey(unittest.TestCase):
 
                 filesMatch = filecmp.cmp(tmpfile, tmpcopy)
                 if not filesMatch:
-                    print "== Original file"
+                    print("== Original file")
                     with open(tmpfile, "r") as fd:
                         for line in fd:
-                            print line.rstrip()
-                    print "== Copied file"
+                            print(line.rstrip())
+                    print("== Copied file")
                     with open(tmpcopy, "r") as fd:
                         for line in fd:
-                            print line.rstrip()
+                            print(line.rstrip())
 
                     self.assertTrue(filesMatch,
                                     "Written file does not match original")
