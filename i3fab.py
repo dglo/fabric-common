@@ -16,18 +16,13 @@ from __future__ import print_function
 
 import getpass
 import os
-import shutil
-import socket
-import subprocess
 import sys
 import tempfile
-import time
-from fabric.api import (env, put, run, settings, cd, lcd, hide, local,
-                        require, get)
+from re import sub
+
+from fabric.api import env, hide, local, put, require, run, settings
 from fabric.contrib.console import confirm
 from fabric.utils import warn
-from re import sub
-from SSHKey import SSHKeyFile
 
 
 def _exists(path):
@@ -81,65 +76,6 @@ def _capture_local(cmd, pty=False):
     return local(cmd, capture=True)
 
 
-def fetch_tarball(url, tar, do_local=False, skip_if_exists=True):
-    """
-    Fetch a tarball into the current directory, if not already there.
-    Use the fabric 'with cd' context manager to set the directory
-    before calling this function.
-    JEJ 12/3 added a bit of witchcraft to support 'local' fetches
-    """
-    if do_local:
-        run_func = _capture_local
-    else:
-        run_func = run
-
-    if skip_if_exists:
-        skip_test = "test -f " + tar + " ||"
-    else:
-        skip_test = ""
-
-    run_func("%s /usr/bin/wget -q %s -O %s" % (skip_test, url, tar))
-
-
-def fetch_tarball_with_cd(url, tar, path=None, do_local=False,
-                          skip_if_exists=True):
-    """
-    Fetches a tarball but sets up the working directory context first
-    so that the tar is fetched into the desired area
-    """
-    if do_local:
-        cd_context = lcd
-    else:
-        cd_context = cd
-    with cd_context(path):
-        fetch_tarball(url, tar, do_local)
-
-_fetch_tarball_with_cd = fetch_tarball_with_cd
-
-
-def unpack_tarball(tar):
-    """
-    Unpack a tarball into the current directory.  Use the fabric 'with
-    cd' context manager to set the directory before calling this
-    function.
-    """
-    run("/bin/tar xzf %s" % tar)
-
-
-def _put_verbatim(fname, txt):
-    """
-    Write <txt> to <fname> on the remote system.
-    """
-    (handle, tmpfile) = tempfile.mkstemp()
-    with os.fdopen(handle, "w") as fout:
-        fout.write(txt)
-        fout.write("\n")
-    put(tmpfile, fname)
-    os.remove(tmpfile)
-
-put_verbatim = _put_verbatim
-
-
 def _activate_string():
     """
     Return a string containing the command which activates the user's Python
@@ -174,6 +110,20 @@ def _entry_in_crontab(crontext, entry):
     if entry in crontext:
         return True
     return False
+
+
+def _load_profile_string(do_local=False):
+    """
+    Return a string containing the command which loads the user's shell
+    environment
+    """
+    if do_local:
+        homedir = os.environ["HOME"]
+    else:
+        with hide("running", "stdout", "stderr"):
+            homedir = str(run("echo $HOME", pty=False))
+
+    return "source %s/.bash_profile" % homedir
 
 
 def stripnl(rawstr):
@@ -273,141 +223,6 @@ def _add_cron_job(minute, hour, mday, mon, wday, rule,
                       load_profile=load_profile, do_local=do_local)
 
 
-def _check_tunnel(gateway_host, tunnel_host, local_port):
-    """
-    Open an ssh tunnel on <local_port> connecting the local host to
-    <tunnel_host> via <gateway_host>
-
-    Example: _check_tunnel("access-node", "hidden-node", 12345)
-    """
-
-    # assume the tunnel already exists if the port can be opened
-    #
-    opened = False
-    sock = socket.socket()
-    try:
-        sock.connect(("localhost", local_port))
-        opened = True
-    except socket.error:
-        pass
-    sock.close()
-
-    if not opened:
-        # open the tunnel
-        #
-        p = subprocess.Popen("ssh -L %d:%s:22 -f -N %s" %
-                             (local_port, tunnel_host, gateway_host),
-                             shell=True)
-
-        # wait for tunnel initialization to complete
-        #
-        connected = False
-        while not connected:
-            sock = socket.socket()
-            try:
-                sock.connect(("localhost", local_port))
-                connected = True
-            except socket.error:
-                print("waiting for %s tunnel to be created" % tunnel_host)
-                time.sleep(1)
-            sock.close()
-
-
-def _expand_tilde(dir, do_local=False):
-    """
-    Expand a relative path starting with ~ into an absolute path
-    """
-    if not dir.startswith("~"):
-        return dir
-
-    if do_local:
-        return os.path.expanduser(dir)
-
-    splitpath = dir.split(os.path.sep)
-    with hide("running", "stdout", "stderr"):
-        fixed = run("cd %s && pwd" % splitpath[0])
-    splitpath[0] = fixed
-    return os.path.sep.join(splitpath)
-
-
-def _extract_file(filename, extract_dir=None, do_local=False):
-    """
-    Extract archive file <filename>.  If <extract_dir> is not None, the file
-    will be extracted into that directory.
-    If <do_local> is True, extract the file on the local machine.
-    """
-    if do_local:
-        frun = _capture_local
-    else:
-        frun = run
-
-    if extract_dir is None:
-        cd_cmd = ""
-    else:
-        cd_cmd = "cd %s && " % extract_dir
-
-    if filename.endswith(".tar"):
-        frun(cd_cmd + "tar xvf %s" % filename)
-    elif filename.endswith(".tgz") or filename.endswith(".tar.gz"):
-        frun(cd_cmd + "tar xzf %s" % filename)
-    elif filename.endswith(".tar.bz2"):
-        frun(cd_cmd + "tar xjf %s" % filename)
-    elif filename.endswith(".zip"):
-        frun(cd_cmd + "unzip " + filename)
-    else:
-        raise Exception("Unknown extension for \"%s\"" %
-                        (filename))
-
-
-def _fetch_and_extract(url, host_hidden=False, do_local=False,
-                       check_certificate=True):
-    """
-    Fetch a file from <url>, extract it in the current directory, and remove
-    the downloaded file.  If <do_local> is True, fetch the file to the local
-    machine.
-    (See _fetch_file() for an explanation of <host_hidden>).
-    """
-    filename = _fetch_file(url, host_hidden=host_hidden, do_local=do_local,
-                           check_certificate=check_certificate)
-    _extract_file(filename, do_local)
-    run("/bin/rm %s" % filename)
-
-_fetch_and_install_tarball = _fetch_and_extract
-
-
-def _fetch_file(url, host_hidden=False, do_local=False,
-                check_certificate=True):
-    """
-    Fetch a file from <url>, using the local machine as a staging area
-    if <host_hidden> is True (indicating that the remote machine is behind
-    a firewall).  If <do_local> is True, fetch the file to the local machine.
-
-    Return the name of the fetched file.
-    """
-    if do_local:
-        fexists = os.path.exists
-        frun = _capture_local
-        host_hidden = False
-    else:
-        fexists = _exists
-        frun = run
-
-    filename = os.path.basename(url)
-    if not fexists(filename):
-        if check_certificate:
-            cert_flag = ""
-        else:
-            cert_flag = " --no-check-certificate"
-        if not host_hidden:
-            frun("wget -q %s %s" % (cert_flag, url))
-        else:
-            local("wget -q %s %s" % (cert_flag, url))
-            put(filename, filename)
-            os.remove(filename)
-
-    return filename
-
-
 def _file_contains_text(path, text, do_local=False):
     """
     Return True if <file> contains <text>.  Note this method uses "grep", so
@@ -444,43 +259,6 @@ def _get_password(prompt1, prompt2=None):
     return passwd
 
 
-def _install_python_package(pkgname, url, stage_dir=None, do_local=False,
-                            check_version_method=None,
-                            check_version_args=None,
-                            check_certificate=True):
-    """
-    Install the Python package (imported inside Python with "import <pkgname>")
-    from <url>.  If <stage_dir> is set, the downloaded file is saved there.
-    If <do_local> is True, install the file in the local home directory.
-    """
-    require("host_hidden",
-            used_for="determining if the host is behind a firewall")
-
-    if do_local:
-        frun = _capture_local
-        host_hidden = False
-    else:
-        frun = run
-        host_hidden = env.host_hidden
-
-    if not _python_package_exists(pkgname, use_virtualenv=True,
-                                  do_local=do_local) or \
-        (check_version_method is not None and
-         not check_version_method(check_version_args)):
-        if stage_dir is None:
-            tmpdir = "/tmp"
-        else:
-            tmpdir = _expand_tilde(stage_dir, do_local=do_local)
-
-        pyfile = _stage_file(url, tmpdir, host_hidden=host_hidden,
-                             do_local=do_local,
-                             check_certificate=check_certificate)
-        _virtualenv("easy_install %s" % pyfile, do_local=do_local)
-
-        if stage_dir is None:
-            frun("rm " + pyfile)
-
-
 def _make_cron_job(minute, hour, mday, mon, wday, rule):
     """
     Format the arguments in a string acceptable to crontab.  The time arguments
@@ -490,121 +268,6 @@ def _make_cron_job(minute, hour, mday, mon, wday, rule):
     """
     cron = [str(tstr) for tstr in [minute, hour, mday, mon, wday, rule]]
     return " ".join(cron)
-
-
-def _python_package_exists(pkg, use_virtualenv=False, do_local=False):
-    """
-    Determine if Python package <pkg> is installed on the remote machine.
-    If <use_virtualenv> is True, the Python virtual environment is sourced
-    before the check.  If <do_local> is True, check for the package on the
-    local machine.
-    """
-    if do_local:
-        frun = _capture_local
-    else:
-        frun = run
-
-    with hide("running", "stdout", "stderr"):
-        if not use_virtualenv:
-            veStr = ""
-        else:
-            veStr = _activate_string() + "&&"
-
-        return "YES" == frun(('%s if python -c "import %s" >/dev/null 2>&1;' +
-                              ' then echo YES; else echo NO; fi') %
-                             (veStr, pkg), pty=False)
-
-
-def _remove_cron_rule(rule, do_local=False):
-    """
-    Remove <rule> from the remote crontab table if the crontab contains
-    the rule.
-    If <do_local> is True, the local crontab is (possibly) altered.
-    """
-    if do_local:
-        frun = _capture_local
-    else:
-        frun = run
-
-    with hide("running", "stdout", "stderr"):
-        crontext = frun("crontab -l || exit 0", pty=False)
-        if not _entry_in_crontab(crontext, rule):
-            return
-
-    (handle, tmpfile) = tempfile.mkstemp()
-    with os.fdopen(handle, "w") as fout:
-        for line in crontext.split("\n"):
-            if line.find(rule) < 0:
-                print(line, file=fout)
-
-    with hide("running", "stdout", "stderr"):
-        print("Removing cron job %s" % rule)
-        if not do_local:
-            put(tmpfile, tmpfile)
-
-        frun("crontab %s && rm %s" % (tmpfile, tmpfile))
-
-    os.remove(tmpfile)
-
-
-def _ssh_authorize_key(do_local=False):
-    """
-    Copy local user's public key into the remote account's authorized_keys
-    file. Don't copy if key already in authorized_keys.
-    """
-
-    if do_local:
-        homedir = os.environ["HOME"]
-        fexists = os.path.exists
-        fput = shutil.copyfile
-        frun = _capture_local
-    else:
-        with hide("running", "stdout", "stderr"):
-            homedir = str(run("echo $HOME", pty=False))
-        fexists = _exists
-        fput = put
-        frun = run
-
-    pub_key = os.path.join(os.environ["HOME"], ".ssh", "id_dsa.pub")
-    new_key = SSHKeyFile(pub_key, error_func=warn, allow_multiples=True)
-    if len(new_key) != 1:
-        warn("Found multiple SSH keys in %s" % pub_key)
-
-    sshdir = os.path.join(homedir, '.ssh')
-    authkeys = os.path.join(sshdir, "authorized_keys")
-
-    changed = False
-    if not fexists(authkeys):
-        if not fexists(sshdir):
-            frun("mkdir -pm 0700 %s" % sshdir)
-        tmpfile = None
-        rmt_keys = new_key
-        changed = True
-    else:
-        # read in remote authorized_keys
-        tmpfile = tempfile.mktemp("remote_authkeys")
-        with hide("running", "stdout", "stderr"):
-            get(authkeys, tmpfile)
-        rmt_keys = SSHKeyFile(tmpfile, error_func=warn, allow_multiples=True)
-        os.remove(tmpfile)
-
-        # merge in id_dsa.pub if it's not in the authorized_keys file
-        # or if it's been changed
-        for k, v in new_key.items():
-            if not k in rmt_keys:
-                rmt_keys.add(v)
-                changed = True
-            elif rmt_keys[k].hexkey() != new_key[k].hexkey():
-                rmt_keys[k].add(v)
-                changed = True
-
-    if changed:
-        warn("Updating remote SSH key")
-        tmpfile = tempfile.mktemp("new_keys")
-        rmt_keys.write(tmpfile)
-        fput(tmpfile, authkeys)
-        frun("chmod 0600 %s" % authkeys)
-        os.remove(tmpfile)
 
 
 def _ssh_genkey(keyfile=".ssh/id_dsa", do_local=False):
@@ -634,44 +297,6 @@ def _ssh_genkey(keyfile=".ssh/id_dsa", do_local=False):
             print("Generating SSH key")
             frun("(echo '%s'; echo '%s') | ssh-keygen -t dsa -f '%s'" %
                  (passphrase, passphrase, keypath))
-
-
-def _stage_file(url, stage_dir, host_hidden=False, do_local=False,
-                check_certificate=True):
-    """
-    Download file from <url> to the staging area <stage_dir>.  If <do_local> is
-    True, save the file to the local staging area.  (See _fetch_file() for an
-    explanation of <host_hidden>).
-    """
-    if do_local:
-        fexists = os.path.exists
-        frun = _capture_local
-    else:
-        fexists = _exists
-        frun = run
-
-    stagePath = os.path.join(stage_dir, os.path.basename(url))
-    if not fexists(stagePath):
-        if not fexists(stage_dir):
-            frun("mkdir -p " + stage_dir)
-
-        if not do_local:
-            origDir = None
-            stageFile = stagePath
-        else:
-            origDir = os.getcwd()
-            os.chdir(stage_dir)
-            stageFile = os.path.basename(stagePath)
-
-        filename = _fetch_file(url, host_hidden=host_hidden,
-                               do_local=do_local,
-                               check_certificate=check_certificate)
-        if filename != stageFile or origDir is None:
-            frun("mv %s %s" % (filename, stagePath))
-        if origDir is not None:
-            os.chdir(origDir)
-
-    return stagePath
 
 
 def _svn_checkout(svn_url, dir_name, username=None, update_existing=True,
@@ -744,30 +369,6 @@ def _svn_checkout(svn_url, dir_name, username=None, update_existing=True,
                 print("Giving up after %d attempts" % \
                       (attempts - 1), file=sys.stderr)
                 break
-
-
-def _virtualenv(cmd, do_local=False):
-    """
-    Run <cmd> inside Python virtual environment.  If <do_local> is True, the
-    command is run on the local machine.
-    """
-    if do_local:
-        frun = _capture_local
-    else:
-        frun = run
-
-    frun(_activate_string() + "&&" + cmd)
-
-
-def _program_exists(prog, do_local=False):
-    if do_local:
-        frun = _capture_local
-    else:
-        frun = run
-
-    with settings(warn_only=True):
-        with hide('output'):
-            return frun("which " + prog).succeeded
 
 
 if __name__ == "__main__":
