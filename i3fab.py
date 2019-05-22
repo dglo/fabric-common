@@ -22,27 +22,29 @@ import subprocess
 import sys
 import tempfile
 import time
-import fabric.utils
 from fabric.api import (env, put, run, settings, cd, lcd, hide, local,
                         require, get)
 from fabric.contrib.console import confirm
+from fabric.utils import warn
 from re import sub
 from SSHKey import SSHKeyFile
 
 
-def _exists(f):
+def _exists(path):
     """
     Determine if remote file with path <f> (fully qualified or
     relative to remote user directory) exists.
     """
     with hide('stdout', 'running'):
-        return "YES" == run("if [ -e %s ]; then echo YES; else echo NO; fi" %
-                            f, pty=False)
+        answer = run("if [ -e %s ]; then echo YES; else echo NO; fi" % path,
+                     pty=False)
+
+    return answer == "YES"
 
 exists = _exists
 
 
-def confirm_with_details(f):
+def confirm_with_details(func):
     """
     Decorator which prints __doc__ for given function, asks the user
     if she really wants to pull the trigger, and executes the function
@@ -60,12 +62,15 @@ def confirm_with_details(f):
 
     """
     def new(*args, **kwargs):
-        if f.__doc__:
-            print(f.__doc__)
-        if confirm("%s?" % f.__name__, default=False):
-            return f(*args, **kwargs)
+        "Decorator function which prompts before returning the function"
+        if func.__doc__:
+            print(func.__doc__)
+        if confirm("%s?" % func.__name__, default=False):
+            return func(*args, **kwargs)
         else:
-            print("skipping %s!" % f.__name__)
+            print("skipping %s!" % func.__name__)
+        return None
+
     return new
 
 
@@ -126,10 +131,9 @@ def _put_verbatim(fname, txt):
     Write <txt> to <fname> on the remote system.
     """
     (handle, tmpfile) = tempfile.mkstemp()
-    f = os.fdopen(handle, "w")
-    f.write(txt)
-    f.write("\n")
-    f.close()
+    with os.fdopen(handle, "w") as fout:
+        fout.write(txt)
+        fout.write("\n")
     put(tmpfile, fname)
     os.remove(tmpfile)
 
@@ -144,7 +148,7 @@ def _activate_string():
     require("virtualenv_dir", used_for="the path to the user's" +
             " virtualenv directory")
 
-    return ". %s/bin/activate" % env.virtualenv_dir
+    return "source %s/bin/activate" % env.virtualenv_dir
 
 
 def _entry_in_crontab(crontext, entry):
@@ -165,14 +169,15 @@ def _entry_in_crontab(crontext, entry):
     """
     if crontext is None:
         return False
-    crontext = sub("-mtime\s+(\S+)", "-mtime XXXX", crontext)
-    entry = sub("-mtime\s+(\S+)", "-mtime XXXX", entry)
+    crontext = sub(r"-mtime\s+(\S+)", "-mtime XXXX", crontext)
+    entry = sub(r"-mtime\s+(\S+)", "-mtime XXXX", entry)
     if entry in crontext:
         return True
     return False
 
 
 def stripnl(rawstr):
+    "Strip carriage returns ('\r') from the line"
     return sub('\r', '', rawstr)
 
 
@@ -182,8 +187,8 @@ def _is_bad_cron_line(crontext):
     if crontext is None or len(crontext) != len(bad_cron_line):
         return False
 
-    for i in range(len(bad_cron_line)):
-        if ord(crontext[i]) != bad_cron_line[i]:
+    for idx, char in enumerate(bad_cron_line):
+        if ord(crontext[idx]) != char:
             return False
 
     return True
@@ -204,7 +209,7 @@ def _get_current_cron_text(do_local=False):
             term_error = "TERM environment variable not set."
             if crontext.find(term_error) >= 0:
                 crontext = crontext.replace(term_error, "").strip()
-                fabric.utils.warn("Hacked around TERM env var error")
+                warn("Hacked around TERM env var error")
             if _is_bad_cron_line(crontext):
                 crontext = ""
         return crontext
@@ -216,13 +221,16 @@ def _add_entry_to_crontext(line, text):
     return text + "\n" + line
 
 
-def _add_cron_literal(line, do_local=False):
+def _add_cron_literal(line, load_profile=False, do_local=False):
     """
     Add arbitrary line to a local or remote crontab.
     """
     crontext = _get_current_cron_text(do_local)
     if _entry_in_crontab(crontext, line):
         return
+
+    if load_profile and "SHELL=" not in crontext:
+        crontext = "SHELL=/bin/bash\n" + crontext
 
     crontext = _add_entry_to_crontext(line, crontext)
     if do_local:
@@ -233,9 +241,8 @@ def _add_cron_literal(line, do_local=False):
 
 def _write_tempfile_and_return_name(text):
     (handle, tmpfile) = tempfile.mkstemp()
-    f = os.fdopen(handle, "w")
-    print(text, file=f)
-    f.close()
+    with os.fdopen(handle, "w") as fout:
+        print(text, file=fout)
     return tmpfile
 
 
@@ -255,15 +262,15 @@ def _replace_remote_crontab(crontext):
     run("rm " + remote_tmp_file)
 
 
-def _add_cron_job(min, hr, mday, mon, wday, rule,
-                  do_local=False):
+def _add_cron_job(minute, hour, mday, mon, wday, rule,
+                  load_profile=False, do_local=False):
     """
     Add <rule> to the remote crontab table if the crontab doesn't already
     contain the rule.  See _make_cron_job() for argument details.
     If <do_local> is True, the local crontab is (possibly) altered.
     """
-    _add_cron_literal(
-        _make_cron_job(min, hr, mday, mon, wday, rule), do_local)
+    _add_cron_literal(_make_cron_job(minute, hour, mday, mon, wday, rule),
+                      load_profile=load_profile, do_local=do_local)
 
 
 def _check_tunnel(gateway_host, tunnel_host, local_port):
@@ -474,13 +481,14 @@ def _install_python_package(pkgname, url, stage_dir=None, do_local=False,
             frun("rm " + pyfile)
 
 
-def _make_cron_job(min, hr, mday, mon, wday, rule):
+def _make_cron_job(minute, hour, mday, mon, wday, rule):
     """
     Format the arguments in a string acceptable to crontab.  The time arguments
-    (<min>, <hr>, <mday>, <mon>, and <wday>) are analagous to the first five
-    crontab arguments; an argument of type str is passed verbatim (e.g. '*')
+    (<minute>, <hour>, <mday>, <mon>, and <wday>) are analagous to the first
+    five crontab arguments; an argument of type str is passed verbatim
+    (e.g. '*')
     """
-    cron = [str(h) for h in [min, hr, mday, mon, wday, rule]]
+    cron = [str(tstr) for tstr in [minute, hour, mday, mon, wday, rule]]
     return " ".join(cron)
 
 
@@ -524,11 +532,10 @@ def _remove_cron_rule(rule, do_local=False):
             return
 
     (handle, tmpfile) = tempfile.mkstemp()
-    f = os.fdopen(handle, "w")
-    for line in crontext.split("\n"):
-        if line.find(rule) < 0:
-            print(line, file=f)
-    f.close()
+    with os.fdopen(handle, "w") as fout:
+        for line in crontext.split("\n"):
+            if line.find(rule) < 0:
+                print(line, file=fout)
 
     with hide("running", "stdout", "stderr"):
         print("Removing cron job %s" % rule)
@@ -559,10 +566,9 @@ def _ssh_authorize_key(do_local=False):
         frun = run
 
     pub_key = os.path.join(os.environ["HOME"], ".ssh", "id_dsa.pub")
-    new_key = SSHKeyFile(pub_key, error_func=fabric.utils.warn,
-                         allow_multiples=True)
+    new_key = SSHKeyFile(pub_key, error_func=warn, allow_multiples=True)
     if len(new_key) != 1:
-        fabric.utils.warn("Found multiple SSH keys in %s" % pub_key)
+        warn("Found multiple SSH keys in %s" % pub_key)
 
     sshdir = os.path.join(homedir, '.ssh')
     authkeys = os.path.join(sshdir, "authorized_keys")
@@ -579,8 +585,7 @@ def _ssh_authorize_key(do_local=False):
         tmpfile = tempfile.mktemp("remote_authkeys")
         with hide("running", "stdout", "stderr"):
             get(authkeys, tmpfile)
-        rmt_keys = SSHKeyFile(tmpfile, error_func=fabric.utils.warn,
-                              allow_multiples=True)
+        rmt_keys = SSHKeyFile(tmpfile, error_func=warn, allow_multiples=True)
         os.remove(tmpfile)
 
         # merge in id_dsa.pub if it's not in the authorized_keys file
@@ -594,7 +599,7 @@ def _ssh_authorize_key(do_local=False):
                 changed = True
 
     if changed:
-        fabric.utils.warn("Updating remote SSH key")
+        warn("Updating remote SSH key")
         tmpfile = tempfile.mktemp("new_keys")
         rmt_keys.write(tmpfile)
         fput(tmpfile, authkeys)
@@ -604,20 +609,20 @@ def _ssh_authorize_key(do_local=False):
 
 def _ssh_genkey(keyfile=".ssh/id_dsa", do_local=False):
     "Generate an SSH key"
-    addHomeDir = (keyfile[0] != "/")
+    add_homedir = (keyfile[0] != "/")
     if do_local:
-        if addHomeDir:
+        if add_homedir:
             homedir = os.environ["HOME"]
         fexists = os.path.exists
         frun = _capture_local
     else:
-        if addHomeDir:
+        if add_homedir:
             with hide("running", "stdout", "stderr"):
                 homedir = run("echo $HOME", pty=False)
         fexists = _exists
         frun = run
 
-    if addHomeDir:
+    if add_homedir:
         keypath = os.path.join(homedir, keyfile)
     if not fexists(keypath):
         prompt1 = "Enter new SSH passphrase for %s" % env.host
@@ -628,7 +633,7 @@ def _ssh_genkey(keyfile=".ssh/id_dsa", do_local=False):
         with hide("running"):
             print("Generating SSH key")
             frun("(echo '%s'; echo '%s') | ssh-keygen -t dsa -f '%s'" %
-                (passphrase, passphrase, keypath))
+                 (passphrase, passphrase, keypath))
 
 
 def _stage_file(url, stage_dir, host_hidden=False, do_local=False,
@@ -706,10 +711,10 @@ def _svn_checkout(svn_url, dir_name, username=None, update_existing=True,
                 tmppass = env.svnpass
             else:
                 if username is not None:
-                    u = username
+                    unm = username
                 else:
-                    u = env.user
-                prompt = "Enter Subversion password for %s" % u
+                    unm = env.user
+                prompt = "Enter Subversion password for %s" % unm
 
                 tmppass = _get_password(prompt)
 
