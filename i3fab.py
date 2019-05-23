@@ -180,7 +180,10 @@ def _add_cron_literal(line, load_profile=False, do_local=False):
         return
 
     if load_profile and "SHELL=" not in crontext:
-        crontext = "SHELL=/bin/bash\n" + crontext
+        if crontext == "":
+            crontext = "SHELL=/bin/bash"
+        else:
+            crontext = "SHELL=/bin/bash\n" + crontext
 
     crontext = _add_entry_to_crontext(line, crontext)
     if do_local:
